@@ -726,7 +726,7 @@ void Config::save() {
                 return;
             }
         }
-        // Make sure /.config/pico-spec/<ver>/<board>/ exists before writing.
+        // Make sure /.config/pico-next/<ver>/<board>/ exists before writing.
         FileUtils::mkdirParents(CONFIG_DIR_BOARD);
         // Atomic write: write to .tmp, then rename over the original
         static const char* nvs_tmp = STORAGE_NVS ".tmp";

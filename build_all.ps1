@@ -74,7 +74,7 @@ foreach ($Target in $Targets) {
     }
 }
 
-Write-Host "=== pico-spec multi-target build ==="
+Write-Host "=== pico-next multi-target build ==="
 Write-Host "Targets:          $($Targets -join ' ')"
 Write-Host "Pairs:            $($BuildPairs.Count)"
 Write-Host "Build type:       $BuildType"

@@ -38,9 +38,9 @@ Best performance for case Pimoroni "Pico Plus 2" is used.
 
 ## Features
 
-- ZX Spectrum 48K, 128K, Pentagon 128k/512k/1024k, Byte and ALF TV Game. 100% cycle accurate emulation.
+- ZX Spectrum 48K, 128K, Pentagon 128k/512k/1024k. 100% cycle accurate emulation.
 - State of the art Z80 emulation (Authored by [José Luis Sánchez](https://github.com/jsanchezv/z80cpp))
-- Selectable Sinclair 48K, Sinclair 128K and Amstrad +2 english and spanish ROMs. Byte and ALF TV Game - russian ROMs, + Pentagons with Gluck services ROMs & TR-DOS 5.05D ROM.
+- Selectable Sinclair 48K, Sinclair 128K and Amstrad +2 english and spanish ROMs, + Pentagons with Gluck services ROMs & TR-DOS 5.05D ROM.
 - Possibility of using custom ROM with easy flashing procedure from SD card.
 - ZX81+ IF2 ROM by courtesy Paul Farrow with .P file loading from SD card.
 - Timex SCLD video modes emulation (hi-res 512->256 OR-merge, hi-color, dual-screen).
@@ -64,8 +64,6 @@ Best performance for case Pimoroni "Pico Plus 2" is used.
 - Z80 DMA / zxnDMA emulation: Port #0B (MB02+) and Port #6B (DATA-GEAR) modes (RP2350 only).
 - Contended memory and contended I/O emulation.
 - AY-3-8912 / TurboSound emulation.
-- SAA1099 sound chip emulation (https://en.wikipedia.org/wiki/Philips_SAA1099).
-- General Sound (GS) emulation: dedicated Z80 @ 12 MHz on core1 with 2 MB sample RAM, ring-buffered DAC, host→GS FIFO for no-handshake loaders. Auto-enabled on RP2350 boards with butter PSRAM.
 - MIDI support: external UART output (AY bit-bang, ShamaZX) and built-in software synthesizer (RP2350 only).
 - Beeper & Mic emulation (Cobra’s Arc).
 - Dual keyboard support: you can connect two devices: first using PS/2 protocol and second using USB at the same time.
@@ -91,14 +89,6 @@ Best performance for case Pimoroni "Pico Plus 2" is used.
 - Complete file navigation system with autoindexing, folder support and search functions.
 - Complete OSD menu in two languages: English & Spanish.
 - BMP screen capture to SD Card (thanks David Crespo 😉).
-
-## Byte Emulation Details (https://zxbyte.org/)
-
-- 48K ROM
-- 128K ROM + TR-DOS
-- 128K ROM + TR-DOS + Mr. Gluk Reset Service
-- Sovmest (COBMECT) Mode (more accurate emulation of a real ZX Spectrum 48/128)
-- Support for the KR580VI53 (a clone of the Intel 8253) three-channel timer
 
 ## Installing
 
@@ -218,12 +208,12 @@ Your filesystem tree must be look like:
 ```
  Base folder
    |-- pico-sdk
-   |-- pico-spec
+   |-- pico-next
         |-- build
         |-- drivers
         |-- src
 ```
- - Configure building options in `pico-spec/CMakeLists.txt` - pico board, video&audio output, etc.
+ - Configure building options in `pico-next/CMakeLists.txt` - pico board, video&audio output, etc.
 
 #### CMake build options
 
@@ -243,7 +233,7 @@ Your filesystem tree must be look like:
 
 #### Multi-target build script
 
-To build firmware for all supported boards and display variants at once, use the `build_all.sh` / `build_all.bat` / `build_all.ps1` scripts in the project root. They build each `(target, display)` pair in its own directory (`build-<TARGET>[-<DISPLAY>]/`) and collect `.uf2` artifacts into `pico-spec/firmware/`.
+To build firmware for all supported boards and display variants at once, use the `build_all.sh` / `build_all.bat` / `build_all.ps1` scripts in the project root. They build each `(target, display)` pair in its own directory (`build-<TARGET>[-<DISPLAY>]/`) and collect `.uf2` artifacts into `pico-next/firmware/`.
 
 ```
 ./build_all.sh [--clean] [-j JOBS_PER_BUILD] [-p MAX_PARALLEL] [TARGETS...]
@@ -257,7 +247,7 @@ To build firmware for all supported boards and display variants at once, use the
 - Uses `ccache` automatically if installed (`apt install ccache` for ~2-5× faster rebuilds)
 - Per-target logs are written to `build-logs/`
 
-Single-target builds produce artifacts in `pico-spec/bin/`.
+Single-target builds produce artifacts in `pico-next/bin/`.
 
 ## Thanks to
 

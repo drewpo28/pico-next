@@ -5,10 +5,13 @@
 # currently attached to it).
 set -euo pipefail
 
-# Pick the most recent ELF.
-ELF=$(ls -t /home/drew/github/pico-spec/build/bin/MinSizeRel/*.elf \
-              /home/drew/github/pico-spec/build_picodvi/bin/Release/*.elf 2>/dev/null \
-      | grep -v "bs2_default" | head -1)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Pick the most recent ELF from common build dirs (override via $ELF env var).
+ELF=${ELF:-$(ls -t "${PROJECT_ROOT}/build/bin/MinSizeRel/"*.elf \
+                   "${PROJECT_ROOT}/build_picodvi/bin/Release/"*.elf 2>/dev/null \
+              | grep -v "bs2_default" | head -1)}
 if [[ -z "${ELF:-}" ]]; then
     echo "No ELF found"
     exit 1
@@ -18,7 +21,6 @@ echo "Using ELF: $ELF"
 GDB=$HOME/.pico-sdk/toolchain/14_2_Rel1/bin/arm-none-eabi-gdb
 OPENOCD=$HOME/.pico-sdk/openocd/0.12.0+dev/openocd
 OPENOCD_SCRIPTS=$HOME/.pico-sdk/openocd/0.12.0+dev/scripts
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Start OpenOCD in background.
 "$OPENOCD" -s "$OPENOCD_SCRIPTS" \

@@ -43,7 +43,7 @@ uint8_t* mem_desc_t::plugged_in[4] = { 0, 0, 0, 0 };
 uint32_t MEM_PG_CNT = 64;
 
 static FIL f;
-static const char PAGEFILE[] = "/tmp/pico-spec.swap";
+static const char PAGEFILE[] = "/tmp/pico-next.swap";
 
 // Called by FileUtils::remountSD() to reopen swap file after SD remount
 extern "C" void mem_swap_reopen(void) {

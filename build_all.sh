@@ -102,7 +102,7 @@ for TARGET in $TARGETS; do
     done
 done
 
-echo "=== pico-spec multi-target build ==="
+echo "=== pico-next multi-target build ==="
 echo "Targets:          $TARGETS"
 echo "Pairs:            ${#BUILD_PAIRS[@]}"
 echo "Build type:       $BUILD_TYPE"

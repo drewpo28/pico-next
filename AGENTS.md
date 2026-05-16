@@ -9,7 +9,7 @@ Development branch: **`claude/pico-next-cleanup-JtWGm`** — Next-related change
 ---
 
 ZX Spectrum emulator for Raspberry Pi Pico (RP2040 / RP2350), ported from [ESPectrum](https://github.com/EremusOne/ESPectrum).
-Emulates ZX Spectrum 48K, 128K, Pentagon 128/512/1024K, Byte computer, and ALF TV Game with 100% cycle-accurate Z80 CPU.
+Emulates ZX Spectrum 48K, 128K, Pentagon 128/512/1024K with 100% cycle-accurate Z80 CPU.
 
 ## Language & Build
 
@@ -46,8 +46,8 @@ Emulates ZX Spectrum 48K, 128K, Pentagon 128/512/1024K, Byte computer, and ALF T
 | `src/CPU.cpp`       | Z80 CPU execution loop (per-frame cycle counting)         |
 | `src/Z80_JLS/`      | Z80 core by J.L. Sánchez — instruction decode/execute     |
 | `src/Z80_JLS.cpp`   | Z80 opcode implementation (large, ~138 KB)                |
-| `src/Ports.cpp`     | I/O port handling: ULA, AY-3-8912, KR580VI53 (8253 PIT), FDD, Kempston |
-| `src/Ports.h`       | Port structures (PIT8253Channel, etc.)                    |
+| `src/Ports.cpp`     | I/O port handling: ULA, AY-3-8912, FDD, Kempston           |
+| `src/Ports.h`       | Port structures                                            |
 | `src/Video.cpp`     | VGA/HDMI/TFT/TV rendering, border, multicolor effects    |
 | `src/MemESP.cpp`    | Memory management: RAM banking, ROM paging, contention    |
 | `src/AySound.cpp`   | AY-3-8912 PSG emulation (ayemu-based)                     |
@@ -76,12 +76,8 @@ Emulates ZX Spectrum 48K, 128K, Pentagon 128/512/1024K, Byte computer, and ALF T
 - **CPU**: Z80 @ 3.5 MHz (Spectrum) / 3.5 MHz (Pentagon), with cycle-accurate contention
 - **ULA**: Border, screen, floating bus, snow effect, beeper (port 0xFE)
 - **AY-3-8912**: 3-channel PSG, TurboSound (dual AY) support
-- **KR580VI53 (Intel 8253 PIT)**: 3-channel square wave synthesizer for Byte computer
-  - Channels configured via ports 0x8E/0xAE/0xCE (data) and 0xEE (control)
-  - `pitGenSound()` generates audio; `pitChannels[]` stores per-channel state
-  - On reset: channels are zeroed (silent). ROM programs them during init.
 - **WD1793**: Beta Disk floppy controller (TRD/SCL images)
-- **Memory**: 16K pages, virtual memory via SPI PSRAM for Pentagon 512/1024K and Murmuzavr (up to 32 MB)
+- **Memory**: 16K pages, virtual memory via SPI PSRAM for Pentagon 512/1024K
 - **Covox**: DAC sound via port 0xFB or 0xDD
 
 ## Audio System
@@ -89,17 +85,14 @@ Emulates ZX Spectrum 48K, 128K, Pentagon 128/512/1024K, Byte computer, and ALF T
 Audio is mixed per-frame into `audioBuffer_L[]` / `audioBuffer_R[]`:
 1. **Beeper** — oversampled into `overSamplebuf[]`, then downsampled
 2. **AY** — `chip0` / `chip1` generate into `SamplebufAY_L[]` / `SamplebufAY_R[]`
-3. **PIT** — `pitGenSound()` fills `audioBufferPIT[]`
-4. **Covox** — fills `audioBufferCovox[]`
-5. Final mix clamps to 0–255, sent via `pwm_audio_write()`
+3. **Covox** — fills `audioBufferCovox[]`
+4. Final mix clamps to 0–255, sent via `pwm_audio_write()`
 
 ## Conventions
 
 - `IRAM_ATTR` / `__not_in_flash_func()` — hot functions placed in RAM for speed
 - Code uses 4-space indentation (some files use 2-space after recent reformatting)
-- Comments mix English, Spanish (original ESPectrum), and Russian (Byte/PIT additions)
-- `Z80Ops::isByte` — flag for Byte computer mode (enables PIT sound, special contention)
-- `Z80Ops::isALF` — flag for ALF TV Game mode
+- Comments mix English and Spanish (original ESPectrum)
 - `Z80Ops::isPentagon` — Pentagon timing (no contention)
 
 ## Display Outputs

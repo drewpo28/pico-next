@@ -126,10 +126,10 @@ private:
 ///    static sdmmc_card_t *card;    
 };
 
-// Config files live under /.config/pico-spec/<port-version>/<board-tag>/
+// Config files live under /.config/pico-next/<port-version>/<board-tag>/
 // (per-version + per-board), with palette.nvs and logs shared in CONFIG_DIR.
 #define CONFIG_DIR_ROOT "/.config"
-#define CONFIG_DIR      CONFIG_DIR_ROOT "/pico-spec"
+#define CONFIG_DIR      CONFIG_DIR_ROOT "/pico-next"
 #define CONFIG_DIR_VER  CONFIG_DIR "/" PORT_VERSION
 #define CONFIG_DIR_BOARD CONFIG_DIR_VER "/" CONFIG_BOARD_TAG
 #define STORAGE_NVS     CONFIG_DIR_BOARD "/storage.nvs"

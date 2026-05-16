@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Convert pico-spec framebuffer dump (made by screenshot.gdb) to PNG and open it.
+# Convert pico-next framebuffer dump (made by screenshot.gdb) to PNG and open it.
 set -euo pipefail
 
 FB=/tmp/picospec_fb.bin

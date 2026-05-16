@@ -161,8 +161,8 @@ void DivMMC::init() {
             enabled = false; return;
         }
         if (!swap_open) {
-            f_unlink("/tmp/divmmc-pico-spec.swap");
-            FRESULT fr = f_open(&swap_file, "/tmp/divmmc-pico-spec.swap", FA_READ | FA_WRITE | FA_CREATE_ALWAYS);
+            f_unlink("/tmp/divmmc-pico-next.swap");
+            FRESULT fr = f_open(&swap_file, "/tmp/divmmc-pico-next.swap", FA_READ | FA_WRITE | FA_CREATE_ALWAYS);
             if (fr != FR_OK) {
                 for (int i = 0; i < DIVMMC_CACHE_SLOTS; i++) {
                     free(active_buf[i]); active_buf[i] = nullptr;
@@ -325,7 +325,7 @@ void DivMMC::reopenFiles() {
     // Reopen swap file
     if (swap_open) {
         f_close(&swap_file);
-        if (f_open(&swap_file, "/tmp/divmmc-pico-spec.swap", FA_READ | FA_WRITE) != FR_OK) {
+        if (f_open(&swap_file, "/tmp/divmmc-pico-next.swap", FA_READ | FA_WRITE) != FR_OK) {
             swap_open = false;
         }
     }

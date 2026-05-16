@@ -85,7 +85,7 @@ for %%T in (%TARGETS%) do (
 set "PAIRS_COUNT=0"
 for %%P in (%PAIRS%) do set /a PAIRS_COUNT+=1
 
-echo === pico-spec multi-target build ===
+echo === pico-next multi-target build ===
 echo Targets:          %TARGETS%
 echo Pairs:            %PAIRS_COUNT%
 echo Build type:       %BUILD_TYPE%

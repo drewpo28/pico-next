@@ -25,14 +25,13 @@ The rest of this README is inherited from pico-spec and describes the classic-Sp
 
 ---
 
-This is an emulator of the Sinclair ZX Spectrum compatible computers running on RP2040 or RP2350 SoC powered boards.
+This is an emulator of the Sinclair ZX Spectrum compatible computers running on RP2350 SoC powered boards.
 
 Board supported:
- - "Murmulator 1.x" + Raspberry "Pi Pico" / "Pi Pico 2" or compatible;
- - "Murmulator 2.0" + Raspberry "Pi Pico" / "Pi Pico 2" or compatible;
- - Waveshare "RP2040-PiZero" / "RP2350-PiZero";
- - Pimoroni "Pico DV Demo Base" + Raspberry "Pi Pico" / "Pi Pico 2" or compatible;
- - Olimex "RP2040-PICO-PC" board + Raspberry "Pi Pico" / "Pi Pico 2" or compatible.
+ - "Murmulator 2.0" + Raspberry "Pi Pico 2" or compatible;
+ - Waveshare "RP2350-PiZero";
+ - Pimoroni "Pico DV Demo Base" + Raspberry "Pi Pico 2" or compatible;
+ - Olimex "RP2350-PICO-PC" board + Raspberry "Pi Pico 2" or compatible.
 
 Best performance for case Pimoroni "Pico Plus 2" is used.
 
@@ -80,7 +79,7 @@ Best performance for case Pimoroni "Pico Plus 2" is used.
 - Enhanced debugger: multi-breakpoint (up to 20), memory editor, port read/write breakpoints.
 - Hardware info menu: Chip Info (model, cores, frequency, VREG voltage), Board Info (flash, PSRAM, SDK version) and Emulator Info (machine, video, sound, input and storage configuration).
 - ZX Keyboard overlay (main menu → ZX Keyboard): full-screen bitmap of the Spectrum keyboard for quick reference. Thanks to @const_bill and @tecnocat.
-- Overclock menu: CPU frequency (RP2350: 252/378/504 MHz; RP2040: 252/378 MHz), Flash frequency (33–166 MHz), PSRAM frequency (66–166 MHz), VReg voltage (RP2350: 1.15–1.80 V).
+- Overclock menu: CPU frequency (RP2350: 252/378/504 MHz), Flash frequency (33–166 MHz), PSRAM frequency (66–166 MHz), VReg voltage (RP2350: 1.15–1.80 V).
 - Complete file navigation system with autoindexing, folder support and search functions.
 - Complete OSD menu in two languages: English & Spanish.
 - BMP screen capture to SD Card (thanks David Crespo 😉).
@@ -104,7 +103,7 @@ Default hotkey bindings (all hotkeys except F1 and ALT+F1 are reconfigurable via
 - F9 Volume down
 - F10 Volume up
 - F11 Hard reset
-- F12 Reset RP2040/RP2350
+- F12 Reset RP2350
 - ~ (Tilde) Max speed toggle
 - Pause Pause
 - ALT+F1 Hardware info
@@ -170,7 +169,7 @@ Your filesystem tree must be look like:
 | Option | Description |
 |--------|-------------|
 | `-DMURM2=ON` | Build for Murmulator 2.0 (default) |
-| `-DPICO_PC=ON` | Build for Olimex RP2040-PICO-PC (RP2350 variant) |
+| `-DPICO_PC=ON` | Build for Olimex RP2350-PICO-PC |
 | `-DPICO_DV=ON` | Build for Pimoroni Pico DV Demo Base |
 | `-DZERO2=ON` | Build for Waveshare RP2350-PiZero |
 | `-DVGA_HDMI=ON` | VGA/HDMI output (default) |

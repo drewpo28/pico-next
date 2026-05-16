@@ -8,7 +8,7 @@ Development branch: **`claude/pico-next-cleanup-JtWGm`** — Next-related change
 
 ---
 
-ZX Spectrum emulator for Raspberry Pi Pico (RP2040 / RP2350), ported from [ESPectrum](https://github.com/EremusOne/ESPectrum).
+ZX Spectrum emulator for Raspberry Pi Pico 2 (RP2350), ported from [ESPectrum](https://github.com/EremusOne/ESPectrum).
 Emulates ZX Spectrum 48K, 128K, Pentagon 128/512/1024K with 100% cycle-accurate Z80 CPU.
 
 ## Language & Build
@@ -23,18 +23,16 @@ Emulates ZX Spectrum 48K, 128K, Pentagon 128/512/1024K with 100% cycle-accurate 
   make -j$(nproc)
   ```
   Output: `bin/Release/*.uf2` — flash via USB mass-storage mode.
-- **Board selection**: set variables in `CMakeLists.txt` (`PICO_PC`, `MURM2`, `ZERO`, `ZERO2`, `PICO_DV`). Default = Murmulator 1.x.
+- **Board selection**: set variables in `CMakeLists.txt` (`PICO_PC`, `MURM2`, `ZERO2`, `PICO_DV`). Default = Murmulator 2.0.
 
 ## Supported Hardware Boards
 
 | Board              | Define    | PSRAM GPIO | Notes                    |
 |--------------------|-----------|------------|--------------------------|
-| Murmulator 1.x     | (default) | 19         |                          |
-| Murmulator 2.0     | `MURM2`   | 8          |                          |
-| Olimex PICO-PC     | `PICO_PC` | 8          | PWM audio on GP27/GP28   |
-| Pimoroni Pico DV   | `PICO_DV` | 47         | HDMI via DVI on GP6+     |
-| Waveshare PiZero   | `ZERO`    | —          | RP2040                   |
-| Waveshare PiZero 2 | `ZERO2`   | 47         | RP2350                   |
+| Murmulator 2.0     | `MURM2`   | 8          | RP2350A                  |
+| Olimex PICO-PC     | `PICO_PC` | 8          | RP2350A, PWM audio on GP27/GP28 |
+| Pimoroni Pico DV   | `PICO_DV` | 47         | RP2350B, HDMI via DVI on GP6+   |
+| Waveshare PiZero 2 | `ZERO2`   | 47         | RP2350B                  |
 
 ## Architecture / Key Source Files
 

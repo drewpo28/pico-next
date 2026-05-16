@@ -8,6 +8,7 @@
 
 #include "psram_ram.h"
 #include "nextreg.h"
+#include "../MemESP.h"
 #include "../Debug.h"
 
 namespace NextMMU {
@@ -75,6 +76,22 @@ void reset() {
     for (int i = 0; i < SLOTS; ++i) {
         NextReg::regs[0x50 + i] = defaults[i];
         set_slot(i, defaults[i]);
+    }
+
+    // Re-point the legacy MemESP::ram[0..7] descriptors at NextRAM so any
+    // consumer that still reads through the classic 128K view sees the
+    // same bytes the MMU exposes. Video.cpp's screen renderer is the
+    // critical one — it reads MemESP::ram[5].direct() / ram[7].direct()
+    // for the active / shadow screen — but other paths (snapshot save,
+    // OSD, debugger) also walk ram[]. Each classic 16K bank covers two
+    // consecutive NextRAM 8K pages (bank N → pages 2N, 2N+1, and they're
+    // already physically contiguous in NextRAM since it's one flat 2 MB
+    // buffer). `locked=true` keeps the descriptor out of the page-swap
+    // free list — the buffer is permanently parked in PSRAM.
+    if (NextRAM::available) {
+        for (int b = 0; b < 8; ++b) {
+            MemESP::ram[b].assign_ram(NextRAM::page_ptr(b * 2), b, /*locked=*/true);
+        }
     }
 
     Debug::log("NextMMU: reset — ROM/ROM/RAM5/RAM5/RAM2/RAM2/RAM0/RAM0");

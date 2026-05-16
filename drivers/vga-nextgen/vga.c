@@ -1,0 +1,657 @@
+#include "graphics.h"
+#include "hardware/clocks.h"
+#include "stdbool.h"
+#include "hardware/structs/pll.h"
+#include "hardware/structs/systick.h"
+
+#include "hardware/dma.h"
+#include "hardware/irq.h"
+#include <string.h>
+#include <stdio.h>
+#include "hardware/pio.h"
+#include "pico/stdlib.h"
+#include "stdlib.h"
+
+/// TODO: .h
+bool SELECT_VGA = false;
+uint8_t* getLineBuffer(int line);
+void ESPectrum_vsync();
+int get_video_mode();
+
+uint16_t pio_program_VGA_instructions[] = {
+    //     .wrap_target
+    0x6008, //  0: out    pins, 8
+    //     .wrap
+};
+
+const struct pio_program pio_program_VGA = {
+    .instructions = pio_program_VGA_instructions,
+    .length = 1,
+    .origin = -1,
+};
+
+
+static uint32_t* lines_pattern[4];
+static uint32_t* lines_pattern_data = NULL;
+static int _SM_VGA = -1;
+
+
+//static int N_lines_total = 525;
+//static int N_lines_visible = 480;
+static int line_VS_begin = 490;
+static int line_VS_end = 491;
+static int shift_picture = 0;
+
+static int visible_line_size = 320;
+static int line_size = 800;
+static int HS_SIZE = 96;
+static int HS_SHIFT = 656;
+
+// Maximum DMA buffer size for any supported VGA mode (e.g. 720x576 needs ~880).
+// lines_pattern_data is allocated to this size, smaller modes use only part of it.
+#define VGA_MAX_LINE_SIZE 1024
+
+// Sync byte templates set during init. Stored to allow re-rendering line patterns
+// when the mode (and thus HS_SIZE / line_size) changes at runtime.
+static uint8_t TMPL_LINE8_g = 0b11000000;
+static uint8_t TMPL_HS8_g   = 0b10000000;
+static uint8_t TMPL_VS8_g   = 0b01000000;
+static uint8_t TMPL_VHS8_g  = 0b00000000;
+
+
+static int dma_chan_ctrl;
+static int dma_chan;
+
+/// TODO:
+int graphics_buffer_width = 0;
+int graphics_buffer_height = 0;
+int graphics_buffer_shift_x = 0;
+int graphics_buffer_shift_y = 0;
+
+static bool is_flash_line = false;
+static bool is_flash_frame = false;
+bool vga_scanlines = false;
+
+static uint32_t bg_color[2];
+static uint16_t palette16_mask = 0;
+
+// VGA8 dithered palette LUT: /42 checkerboard dithering (7 levels per channel, 343 colors)
+// [0][i] = even scanline pixel pair,  [1][i] = odd scanline pixel pair
+static uint16_t palette_vga16[2][256] = { 0 };
+
+// Scanline dimmed palette: dithered at ~50% brightness for scanline effect
+static uint16_t palette_vga16_scanline[256] = { 0 };
+
+static uint text_buffer_width = 0;
+static uint text_buffer_height = 0;
+
+static uint16_t txt_palette[16];
+
+//буфер 2К текстовой палитры для быстрой работы
+static uint16_t* txt_palette_fast = NULL;
+//static uint16_t txt_palette_fast[256*4];
+
+enum graphics_mode_t graphics_mode = GRAPHICSMODE_DEFAULT;
+
+void __time_critical_func() dma_handler_VGA() {
+    dma_hw->ints0 = 1u << dma_chan_ctrl;
+    static uint32_t frame_number = 0;
+    static uint32_t screen_line = 0;
+    static uint8_t* input_buffer = NULL;
+    screen_line++;
+
+    struct video_mode_t mode = graphics_get_video_mode(get_video_mode());
+    int v_total = mode.vga_v_total ? mode.vga_v_total : mode.v_total;
+    int v_active = mode.vga_v_active ? mode.vga_v_active : mode.v_active;
+
+    if (screen_line == v_total) {
+        screen_line = 0;
+        frame_number++;
+        input_buffer = getLineBuffer(screen_line);
+    }
+
+    // Signal vsync at start of blanking (after last visible line), so emulator
+    // renders the next frame during blanking while VGA isn't reading frameBuffer —
+    // prevents tearing at the top of the screen.
+    if (screen_line == v_active) {
+        ESPectrum_vsync();
+    }
+
+    if (screen_line >= v_active) {
+        //заполнение цветом фона
+        if (screen_line == v_active | screen_line == v_active + 3) {
+            uint32_t* output_buffer_32bit = lines_pattern[2 + (screen_line & 1)];
+            output_buffer_32bit += shift_picture / 4;
+            uint32_t p_i = (screen_line & is_flash_line) + (frame_number & is_flash_frame) & 1;
+            uint32_t color32 = bg_color[p_i];
+            for (int i = visible_line_size / 2; i--;) {
+                *output_buffer_32bit++ = color32;
+            }
+        }
+
+        //синхросигналы
+        if (screen_line >= line_VS_begin && screen_line <= line_VS_end)
+            dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[1], false); //VS SYNC
+        else
+            dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[0], false);
+        return;
+    }
+
+    if (!input_buffer) {
+        dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[0], false);
+        return;
+    } //если нет видеобуфера - рисуем пустую строку
+
+    int y, line_number;
+
+    uint32_t* * output_buffer = &lines_pattern[2 + (screen_line & 1)];
+    switch (graphics_mode) {
+        case GRAPHICSMODE_DEFAULT:
+            line_number = screen_line / 2;
+            y = screen_line / 2 - graphics_buffer_shift_y;
+            break;
+/**
+        case TEXTMODE_160x100:
+        case TEXTMODE_53x30:
+        case TEXTMODE_DEFAULT: {
+            uint16_t* output_buffer_16bit = (uint16_t *)*output_buffer;
+            output_buffer_16bit += shift_picture / 2;
+            const uint font_height = 16;
+
+            // "слой" символа
+            uint32_t glyph_line = screen_line % font_height;
+if (!text_buffer) return;
+            //указатель откуда начать считывать символы
+            uint8_t* text_buffer_line = &text_buffer[screen_line / font_height * text_buffer_width * 2];
+
+            for (int x = 0; x < text_buffer_width; x++) {
+                //из таблицы символов получаем "срез" текущего символа
+                uint8_t glyph_pixels = font_8x16[*text_buffer_line++ * font_height + glyph_line];
+                //считываем из быстрой палитры начало таблицы быстрого преобразования 2-битных комбинаций цветов пикселей
+                uint16_t* color = &txt_palette_fast[*text_buffer_line++ * 4];
+#if 0
+                if (cursor_blink_state && !manager_started &&
+                    (screen_line / 16 == CURSOR_Y && x == CURSOR_X && glyph_line >= 11 && glyph_line <= 13)) {
+                    *output_buffer_16bit++ = color[3];
+                    *output_buffer_16bit++ = color[3];
+                    *output_buffer_16bit++ = color[3];
+                    *output_buffer_16bit++ = color[3];
+                    if (text_buffer_width == 40) {
+                        *output_buffer_16bit++ = color[3];
+                        *output_buffer_16bit++ = color[3];
+                        *output_buffer_16bit++ = color[3];
+                        *output_buffer_16bit++ = color[3];
+                    }
+                }
+                else
+#endif
+                {
+                    *output_buffer_16bit++ = color[glyph_pixels & 3];
+                    if (text_buffer_width == 40) *output_buffer_16bit++ = color[glyph_pixels & 3];
+                    glyph_pixels >>= 2;
+                    *output_buffer_16bit++ = color[glyph_pixels & 3];
+                    if (text_buffer_width == 40) *output_buffer_16bit++ = color[glyph_pixels & 3];
+                    glyph_pixels >>= 2;
+                    *output_buffer_16bit++ = color[glyph_pixels & 3];
+                    if (text_buffer_width == 40) *output_buffer_16bit++ = color[glyph_pixels & 3];
+                    glyph_pixels >>= 2;
+                    *output_buffer_16bit++ = color[glyph_pixels & 3];
+                    if (text_buffer_width == 40) *output_buffer_16bit++ = color[glyph_pixels & 3];
+                }
+            }
+            dma_channel_set_read_addr(dma_chan_ctrl, output_buffer, false);
+            return;
+        }
+*/
+        default: {
+            dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[0], false); // TODO: ensue it is required
+            return;
+        }
+    }
+
+    if (y < 0) {
+        dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[0], false); // TODO: ensue it is required
+        return;
+    }
+    if (y >= graphics_buffer_height) {
+        // заполнение линии цветом фона
+        if (y == graphics_buffer_height | y == graphics_buffer_height + 1 |
+            y == graphics_buffer_height + 2) {
+            uint32_t* output_buffer_32bit = *output_buffer;
+            uint32_t p_i = ((screen_line & is_flash_line) + (frame_number & is_flash_frame)) & 1;
+            uint32_t color32 = bg_color[p_i];
+
+            output_buffer_32bit += shift_picture / 4;
+            for (int i = visible_line_size / 2; i--;) {
+                *output_buffer_32bit++ = color32;
+            }
+        }
+        dma_channel_set_read_addr(dma_chan_ctrl, output_buffer, false);
+        return;
+    };
+
+    //зона прорисовки изображения
+    //начальные точки буферов
+    uint8_t* input_buffer_8bit ///= input_buffer + y / 2 * 80 + (y & 1) * 8192;
+             = getLineBuffer(y);
+
+    uint16_t* output_buffer_16bit = (uint16_t *)(*output_buffer);
+    output_buffer_16bit += shift_picture / 2; //смещение началы вывода на размер синхросигнала
+
+    //    g_buf_shx&=0xfffffffe;//4bit buf
+    //    graphics_buffer_shift_x &= 0xfffffff1; //1bit buf
+        graphics_buffer_shift_x &= 0xfffffff2; //2bit buf
+
+    //для div_factor 2
+    uint max_width = graphics_buffer_width;
+    if (graphics_buffer_shift_x < 0) {
+        //vbuf8-=g_buf_shx; //8bit buf
+///            input_buffer_8bit -= graphics_buffer_shift_x / 8; //1bit buf
+            input_buffer_8bit -= graphics_buffer_shift_x / 4; //2bit buf
+        max_width += graphics_buffer_shift_x;
+    }
+    else {
+#define div_factor (2)
+        output_buffer_16bit += graphics_buffer_shift_x * 2 / div_factor;
+    }
+
+
+    int width = MIN((visible_line_size - ((graphics_buffer_shift_x > 0) ? (graphics_buffer_shift_x) : 0)), max_width);
+    if (width < 0) return; // TODO: detect a case
+
+    // Индекс палитры в зависимости от настроек чередования строк и кадров
+///    uint16_t* current_palette = palette[(y & is_flash_line) + (frame_number & is_flash_frame) & 1];
+
+    uint8_t* output_buffer_8bit;
+    switch (graphics_mode) {
+        case GRAPHICSMODE_DEFAULT: {
+            uint16_t* pal = (vga_scanlines && (screen_line & 1))
+                ? palette_vga16_scanline
+                : palette_vga16[screen_line & 1];
+            for  (int x = 0; x < width; ++x) {
+                register uint8_t idx = input_buffer_8bit[x ^ 2];
+                *output_buffer_16bit++ = pal[idx];
+            }
+            break;
+        }
+        default:
+            break;
+    }
+    dma_channel_set_read_addr(dma_chan_ctrl, output_buffer, false);
+}
+
+void graphics_set_mode(enum graphics_mode_t mode) {
+    if (!SELECT_VGA) {
+        graphics_mode = mode;
+        return;
+    }
+    text_buffer_width = 80;
+    text_buffer_height = 30;
+///    memset(graphics_buffer, 0, graphics_buffer_height * graphics_buffer_width);
+    if (_SM_VGA < 0) return; // если  VGA не инициализирована -
+
+    graphics_mode = mode;
+
+    // Если мы уже проиницилизированы - выходим
+    if (txt_palette_fast && lines_pattern_data) {
+        return;
+    };
+    uint8_t TMPL_VHS8 = 0;
+    uint8_t TMPL_VS8 = 0;
+    uint8_t TMPL_HS8 = 0;
+    uint8_t TMPL_LINE8 = 0;
+
+    double fdiv = 100;
+    // line_size, HS_SIZE, HS_SHIFT are now globals — assigned from video_mode below
+
+    switch (graphics_mode) {
+        case TEXTMODE_DEFAULT:
+            //текстовая палитра
+            for (int i = 0; i < 16; i++) {
+                txt_palette[i] = txt_palette[i] & 0x3f | palette16_mask >> 8;
+            }
+
+            if (!txt_palette_fast) {
+                txt_palette_fast = (uint16_t *)calloc(256 * 4, sizeof(uint16_t));
+                for (int i = 0; i < 256; i++) {
+                    const uint8_t c1 = txt_palette[i & 0xf];
+                    const uint8_t c0 = txt_palette[i >> 4];
+
+                    txt_palette_fast[i * 4 + 0] = c0 | c0 << 8;
+                    txt_palette_fast[i * 4 + 1] = c1 | c0 << 8;
+                    txt_palette_fast[i * 4 + 2] = c0 | c1 << 8;
+                    txt_palette_fast[i * 4 + 3] = c1 | c1 << 8;
+                }
+            }
+        case GRAPHICSMODE_DEFAULT: {
+            TMPL_LINE8 = 0b11000000;
+            palette16_mask = 0xc0c0;
+            line_VS_begin = 490;
+            line_VS_end = 491;
+            struct video_mode_t vMode = graphics_get_video_mode(get_video_mode());
+            int vga_px = vMode.vga_pixel_clk ? vMode.vga_pixel_clk : vMode.pixel_clk;
+            fdiv = clock_get_hz(clk_sys) / vga_px; //частота пиксельклока
+            // Compute line layout from video_mode fields (×2 because VGA byte=pixel
+            // and HDMI table values are in HDMI-bytes which encode 2 pixels each).
+            int hs_b = vMode.vga_h_sync_bytes ? vMode.vga_h_sync_bytes : vMode.h_sync_bytes;
+            int bp_b = vMode.vga_h_bp_bytes   ? vMode.vga_h_bp_bytes   : vMode.h_bp_bytes;
+            int fp_b = vMode.vga_h_fp_bytes   ? vMode.vga_h_fp_bytes   : vMode.h_fp_bytes;
+            int sw_b = vMode.vga_screen_width ? vMode.vga_screen_width : vMode.screen_width;
+            HS_SIZE          = hs_b * 2;
+            int bp           = bp_b * 2;
+            visible_line_size = sw_b;
+            int active_bytes = visible_line_size * 2;
+            int fp           = fp_b * 2;
+            line_size        = HS_SIZE + bp + active_bytes + fp;
+            shift_picture    = HS_SIZE + bp;              // offset where active picture starts in line buffer
+            HS_SHIFT         = line_size - shift_picture; // legacy unused
+            break;
+        }
+        default:
+            return;
+    }
+
+    //корректировка  палитры по маске бит синхры
+    bg_color[0] = bg_color[0] & 0x3f3f3f3f | palette16_mask | palette16_mask << 16;
+    bg_color[1] = bg_color[1] & 0x3f3f3f3f | palette16_mask | palette16_mask << 16;
+    // Re-apply sync bits to all VGA palette entries (palette may have been
+    // initialized before palette16_mask was set)
+    for (int i = 0; i < 256; i++) {
+        palette_vga16[0][i] = (palette_vga16[0][i] & 0x3f3f) | palette16_mask;
+        palette_vga16[1][i] = (palette_vga16[1][i] & 0x3f3f) | palette16_mask;
+        palette_vga16_scanline[i] = (palette_vga16_scanline[i] & 0x3f3f) | palette16_mask;
+    }
+
+    // Save sync byte templates as globals so vga_reinit() can re-render line patterns
+    TMPL_LINE8_g = TMPL_LINE8;
+    TMPL_HS8_g   = TMPL_LINE8 ^ 0b01000000;
+    TMPL_VS8_g   = TMPL_LINE8 ^ 0b10000000;
+    TMPL_VHS8_g  = TMPL_LINE8 ^ 0b11000000;
+    TMPL_VHS8 = TMPL_VHS8_g;
+    TMPL_VS8  = TMPL_VS8_g;
+    TMPL_HS8  = TMPL_HS8_g;
+
+    //инициализация шаблонов строк и синхросигнала
+    if (!lines_pattern_data) //выделение памяти, если не выделено
+    {
+        const uint32_t div32 = (uint32_t)(fdiv * (1 << 16) + 0.0);
+        PIO_VGA->sm[_SM_VGA].clkdiv = div32 & 0xfffff000; //делитель для конкретной sm
+        dma_channel_set_trans_count(dma_chan, line_size / 4, false);
+
+        // Allocate to max possible line_size so re-renders during mode switches don't overrun.
+        lines_pattern_data = (uint32_t *)calloc(VGA_MAX_LINE_SIZE * 4 / 4, sizeof(uint32_t));
+
+        for (int i = 0; i < 4; i++) {
+            lines_pattern[i] = &lines_pattern_data[i * (VGA_MAX_LINE_SIZE / 4)];
+        }
+    }
+
+    // (Re-)render line templates for current line_size / HS_SIZE
+    uint8_t* base_ptr = (uint8_t *)lines_pattern[0];
+    memset(base_ptr, TMPL_LINE8, line_size);     // empty line: idle level
+    memset(base_ptr, TMPL_HS8, HS_SIZE);         // hsync pulse at start
+
+    base_ptr = (uint8_t *)lines_pattern[1];
+    memset(base_ptr, TMPL_VS8, line_size);       // vsync line: vsync level
+    memset(base_ptr, TMPL_VHS8, HS_SIZE);        // with hsync pulse at start
+
+    // image line templates start as a copy of the empty line
+    memcpy((uint8_t *)lines_pattern[2], lines_pattern[0], line_size);
+    memcpy((uint8_t *)lines_pattern[3], lines_pattern[0], line_size);
+}
+
+void vga_reinit() {
+    // Update VGA sync parameters, horizontal layout, and PIO pixel clock from current video_mode.
+    // 50Hz modes use vga_pixel_clk override (lower clock + smaller v_total) so
+    // monitors detect the signal as 640x480@50, not PAL 720x576@50.
+    // HDMI ignores vga_* fields and keeps standard 25.175MHz / v_total=628..644.
+    struct video_mode_t mode = graphics_get_video_mode(get_video_mode());
+    line_VS_begin = mode.vga_vsync_start ? mode.vga_vsync_start : mode.vsync_start;
+    line_VS_end = mode.vga_vsync_end ? mode.vga_vsync_end : mode.vsync_end;
+    int pixel_clk = mode.vga_pixel_clk ? mode.vga_pixel_clk : mode.pixel_clk;
+    double fdiv = (double)clock_get_hz(clk_sys) / (double)pixel_clk;
+    const uint32_t div32 = (uint32_t)(fdiv * (1 << 16) + 0.0);
+    PIO_VGA->sm[_SM_VGA].clkdiv = div32 & 0xfffff000;  // integer div only — fractional causes jitter
+
+    // Recompute horizontal layout from video_mode and re-render line templates.
+    // VGA byte=pixel; HDMI table values encode 2 pixels per byte, so multiply by 2.
+    int hs_b = mode.vga_h_sync_bytes ? mode.vga_h_sync_bytes : mode.h_sync_bytes;
+    int bp_b = mode.vga_h_bp_bytes   ? mode.vga_h_bp_bytes   : mode.h_bp_bytes;
+    int fp_b = mode.vga_h_fp_bytes   ? mode.vga_h_fp_bytes   : mode.h_fp_bytes;
+    int sw_b = mode.vga_screen_width ? mode.vga_screen_width : mode.screen_width;
+    int new_HS_SIZE   = hs_b * 2;
+    int new_bp        = bp_b * 2;
+    int new_visible   = sw_b;
+    int new_active    = new_visible * 2;
+    int new_fp        = fp_b * 2;
+    int new_line_size = new_HS_SIZE + new_bp + new_active + new_fp;
+
+    if (new_line_size > VGA_MAX_LINE_SIZE) return;  // safety: don't overflow buffer
+
+    bool layout_changed = (new_line_size != line_size) || (new_HS_SIZE != HS_SIZE)
+                          || (new_visible != visible_line_size);
+
+    HS_SIZE           = new_HS_SIZE;
+    visible_line_size = new_visible;
+    line_size         = new_line_size;
+    shift_picture     = new_HS_SIZE + new_bp;
+    HS_SHIFT          = line_size - shift_picture;
+
+    if (layout_changed && lines_pattern_data) {
+        // Re-render line templates with new HS_SIZE / line_size
+        uint8_t* base_ptr = (uint8_t *)lines_pattern[0];
+        memset(base_ptr, TMPL_LINE8_g, line_size);
+        memset(base_ptr, TMPL_HS8_g, HS_SIZE);
+
+        base_ptr = (uint8_t *)lines_pattern[1];
+        memset(base_ptr, TMPL_VS8_g, line_size);
+        memset(base_ptr, TMPL_VHS8_g, HS_SIZE);
+
+        memcpy((uint8_t *)lines_pattern[2], lines_pattern[0], line_size);
+        memcpy((uint8_t *)lines_pattern[3], lines_pattern[0], line_size);
+
+        dma_channel_set_trans_count(dma_chan, line_size / 4, false);
+    }
+}
+
+void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
+    graphics_buffer_width = width;
+    graphics_buffer_height = height;
+}
+
+
+void graphics_set_offset(const int x, const int y) {
+    graphics_buffer_shift_x = x;
+    graphics_buffer_shift_y = y;
+}
+
+void graphics_set_flashmode(const bool flash_line, const bool flash_frame) {
+    is_flash_frame = flash_frame;
+    is_flash_line = flash_line;
+}
+
+// Bayer 2×2 ordered dithering: /21 → 13 levels/channel → 2197 perceived colors
+// Threshold matrix: [0 2]  Fill order per sub-level: (0,0), (1,1), (0,1), (1,0)
+//                   [3 1]
+static void vga_rgb888_dither(uint32_t color888, uint16_t *even_pair, uint16_t *odd_pair) {
+    uint8_t r_level = ((color888 >> 16) & 0xff) / 21;
+    uint8_t g_level = ((color888 >> 8) & 0xff) / 21;
+    uint8_t b_level = (color888 & 0xff) / 21;
+
+    uint8_t r_lo = r_level >> 2, r_sub = r_level & 3, r_hi = r_lo + (r_lo < 3 && r_sub);
+    uint8_t g_lo = g_level >> 2, g_sub = g_level & 3, g_hi = g_lo + (g_lo < 3 && g_sub);
+    uint8_t b_lo = b_level >> 2, b_sub = b_level & 3, b_hi = b_lo + (b_lo < 3 && b_sub);
+
+    // 4 pixel positions in 2×2 block, ordered by Bayer threshold
+    uint8_t p00 = ((r_sub >= 1 ? r_hi : r_lo) << 4) | ((g_sub >= 1 ? g_hi : g_lo) << 2) | (b_sub >= 1 ? b_hi : b_lo);
+    uint8_t p01 = ((r_sub >= 3 ? r_hi : r_lo) << 4) | ((g_sub >= 3 ? g_hi : g_lo) << 2) | (b_sub >= 3 ? b_hi : b_lo);
+    uint8_t p10 = (r_lo << 4) | (g_lo << 2) | b_lo;
+    uint8_t p11 = ((r_sub >= 2 ? r_hi : r_lo) << 4) | ((g_sub >= 2 ? g_hi : g_lo) << 2) | (b_sub >= 2 ? b_hi : b_lo);
+
+    // Pack pixel pairs: LSB = first pixel (PIO right-shift), MSB = second pixel
+    *even_pair = ((p01 << 8) | p00) & 0x3f3f | palette16_mask;
+    *odd_pair  = ((p11 << 8) | p10) & 0x3f3f | palette16_mask;
+}
+
+// Dim RGB888 color to ~50% brightness
+static uint32_t dim_rgb888(uint32_t color888) {
+    uint8_t r = ((color888 >> 16) & 0xff) >> 1;
+    uint8_t g = ((color888 >> 8) & 0xff) >> 1;
+    uint8_t b = (color888 & 0xff) >> 1;
+    return (r << 16) | (g << 8) | b;
+}
+
+// Update a single VGA palette LUT entry with Bayer dithering
+void vga_set_palette_entry(uint8_t i, uint32_t color888) {
+    vga_rgb888_dither(color888, &palette_vga16[0][i], &palette_vga16[1][i]);
+    // Scanline: dithered at 50% brightness (use odd pair for single-line rendering)
+    uint16_t dummy;
+    vga_rgb888_dither(dim_rgb888(color888), &dummy, &palette_vga16_scanline[i]);
+}
+
+// Update a VGA palette entry WITHOUT dithering (both palettes get identical solid color)
+// Use for the 16 standard Spectrum colors to avoid visible dithering artifacts
+void vga_set_palette_entry_solid(uint8_t i, uint32_t color888) {
+    uint8_t r2 = ((color888 >> 16) & 0xff) / 85;
+    uint8_t g2 = ((color888 >> 8) & 0xff) / 85;
+    uint8_t b2 = (color888 & 0xff) / 85;
+    uint8_t vga6 = (r2 << 4) | (g2 << 2) | b2;
+    uint16_t solid = ((vga6 << 8) | vga6) & 0x3f3f | palette16_mask;
+    palette_vga16[0][i] = solid;
+    palette_vga16[1][i] = solid;
+    // Scanline: dimmed solid
+    uint32_t dim = dim_rgb888(color888);
+    r2 = ((dim >> 16) & 0xff) / 85;
+    g2 = ((dim >> 8) & 0xff) / 85;
+    b2 = (dim & 0xff) / 85;
+    vga6 = (r2 << 4) | (g2 << 2) | b2;
+    palette_vga16_scanline[i] = ((vga6 << 8) | vga6) & 0x3f3f | palette16_mask;
+}
+
+void graphics_set_bgcolor_hdmi(uint32_t color888);
+void graphics_set_bgcolor(const uint32_t color888) {
+    if (!SELECT_VGA) {
+        graphics_set_bgcolor_hdmi(color888);
+        return;
+    }
+    uint16_t p0, p1;
+    vga_rgb888_dither(color888, &p0, &p1);
+    bg_color[0] = (p0 << 16) | p0;
+    bg_color[1] = (p1 << 16) | p1;
+}
+
+#ifndef VGA_HDMI
+// Standalone VGA build: provide graphics_set_palette
+void graphics_set_palette(const uint8_t i, const uint32_t color888) {
+    vga_set_palette_entry(i, color888);
+}
+#endif
+
+void vga_set_scanlines(bool enabled) {
+    vga_scanlines = enabled;
+}
+
+#ifndef VGA_HDMI
+void graphics_set_scanlines(bool enabled) {
+    vga_set_scanlines(enabled);
+}
+#endif
+
+uint8_t linkVGA01;
+void graphics_init_hdmi();
+void graphics_init() {
+    if (video_driver == 0) {
+        #if defined(ZERO) || defined(ZERO2) || defined(PICO_DV)
+            SELECT_VGA = linkVGA01 == 0x1F;
+        #else
+            SELECT_VGA = (linkVGA01 == 0) || (linkVGA01 == 0x1F);
+        #endif
+    } else {
+        SELECT_VGA = video_driver == 1;
+    }
+    if (!SELECT_VGA) {
+        graphics_init_hdmi();
+        return;
+    }
+    //инициализация палитры по умолчанию
+    //текстовая палитра
+    for (int i = 0; i < 16; i++) {
+        const uint8_t b = i & 1 ? (i >> 3 ? 3 : 2) : 0;
+        const uint8_t r = i & 4 ? (i >> 3 ? 3 : 2) : 0;
+        const uint8_t g = i & 2 ? (i >> 3 ? 3 : 2) : 0;
+
+        const uint8_t c = r << 4 | g << 2 | b;
+
+        txt_palette[i] = c & 0x3f | 0xc0;
+    }
+    //инициализация PIO
+    //загрузка программы в один из PIO
+    const uint offset = pio_add_program(PIO_VGA, &pio_program_VGA);
+    _SM_VGA = pio_claim_unused_sm(PIO_VGA, true);
+    const uint sm = _SM_VGA;
+
+    for (int i = 0; i < 8; i++) {
+        gpio_init(VGA_BASE_PIN + i);
+        gpio_set_dir(VGA_BASE_PIN + i, GPIO_OUT);
+        pio_gpio_init(PIO_VGA, VGA_BASE_PIN + i);
+    }; //резервируем под выход PIO
+
+    pio_sm_set_consecutive_pindirs(PIO_VGA, sm, VGA_BASE_PIN, 8, true); //конфигурация пинов на выход
+
+    pio_sm_config c = pio_get_default_sm_config();
+    sm_config_set_wrap(&c, offset + 0, offset + (pio_program_VGA.length - 1));
+
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX); //увеличение буфера TX за счёт RX до 8-ми
+    sm_config_set_out_shift(&c, true, true, 32);
+    sm_config_set_out_pins(&c, VGA_BASE_PIN, 8);
+    pio_sm_init(PIO_VGA, sm, offset, &c);
+
+    pio_sm_set_enabled(PIO_VGA, sm, true);
+
+    //инициализация DMA
+    dma_chan_ctrl = dma_claim_unused_channel(true);
+    dma_chan = dma_claim_unused_channel(true);
+    //основной ДМА канал для данных
+    dma_channel_config c0 = dma_channel_get_default_config(dma_chan);
+    channel_config_set_transfer_data_size(&c0, DMA_SIZE_32);
+
+    channel_config_set_read_increment(&c0, true);
+    channel_config_set_write_increment(&c0, false);
+
+    uint dreq = DREQ_PIO1_TX0 + sm;
+    if (PIO_VGA == pio0) dreq = DREQ_PIO0_TX0 + sm;
+
+    channel_config_set_dreq(&c0, dreq);
+    channel_config_set_chain_to(&c0, dma_chan_ctrl); // chain to other channel
+
+    dma_channel_configure(
+        dma_chan,
+        &c0,
+        &PIO_VGA->txf[sm], // Write address
+        lines_pattern[0], // read address
+        600 / 4, //
+        false // Don't start yet
+    );
+    //канал DMA для контроля основного канала
+    dma_channel_config c1 = dma_channel_get_default_config(dma_chan_ctrl);
+    channel_config_set_transfer_data_size(&c1, DMA_SIZE_32);
+
+    channel_config_set_read_increment(&c1, false);
+    channel_config_set_write_increment(&c1, false);
+    channel_config_set_chain_to(&c1, dma_chan); // chain to other channel
+
+    dma_channel_configure(
+        dma_chan_ctrl,
+        &c1,
+        &dma_hw->ch[dma_chan].read_addr, // Write address
+        &lines_pattern[0], // read address
+        1, //
+        false // Don't start yet
+    );
+
+    graphics_set_mode(GRAPHICSMODE_DEFAULT);
+    irq_set_exclusive_handler(VGA_DMA_IRQ, dma_handler_VGA);
+    dma_channel_set_irq0_enabled(dma_chan_ctrl, true);
+    irq_set_enabled(VGA_DMA_IRQ, true);
+    dma_start_channel_mask(1u << dma_chan);
+}

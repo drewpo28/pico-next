@@ -1,0 +1,10 @@
+.vscode
+.cache
+bin
+build
+build-*
+firmware
+drew.todo
+debug
+debug.log
+dump.log

@@ -1,0 +1,276 @@
+/*
+
+ESPectrum, a Sinclair ZX Spectrum emulator for Espressif ESP32 SoC
+
+Copyright (c) 2023, 2024 Víctor Iborra [Eremus] and 2023 David Crespo [dcrespo3d]
+https://github.com/EremusOne/ZX-ESPectrum-IDF
+
+Based on ZX-ESPectrum-Wiimote
+Copyright (c) 2020, 2022 David Crespo [dcrespo3d]
+https://github.com/dcrespo3d/ZX-ESPectrum-Wiimote
+
+Based on previous work by Ramón Martinez and Jorge Fuertes
+https://github.com/rampa069/ZX-ESPectrum
+
+Original project by Pete Todd
+https://github.com/retrogubbins/paseVGA
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+To Contact the dev team you can write to zxespectrum@gmail.com or 
+visit https://zxespectrum.speccy.org/contacto
+
+*/
+
+#ifndef VIDEO_h
+#define VIDEO_h
+
+#include <inttypes.h>
+#include "ESPectrum.h"
+#include "Config.h"
+#include "VGA/VGA8Bit.h"
+#include <list>
+#include <vector>
+
+#define SPEC_W 256
+#define SPEC_H 192
+
+#define TSTATES_PER_LINE 224
+#define TSTATES_PER_LINE_128 228
+#define TSTATES_PER_LINE_PENTAGON 224
+
+#define TS_SCREEN_48           14335  // START OF ULA DRAW PAPER 48K
+#define TS_SCREEN_128          14361  // START OF ULA DRAW PAPER 128K
+#define TS_SCREEN_PENTAGON     17983  // START OF ULA DRAW PAPER PENTAGON
+
+#define TS_BORDER_320x240 8947  // START OF BORDER 48 (+4 correction)
+#define TS_BORDER_320x240_128 8877  // START OF BORDER 128 (+4 correction)
+#define TS_BORDER_320x240_PENTAGON 12595  // START OF BORDER PENTAGON (+4 correction)
+
+#define TS_BORDER_360x200 13428  // START OF BORDER 48
+#define TS_BORDER_360x200_128 13438  // START OF BORDER 128
+#define TS_BORDER_360x200_PENTAGON 17075  // START OF BORDER PENTAGON
+
+#define TS_BORDER_360x288 3563          // START OF BORDER 48 FULL (formula 3559 + 4)
+#define TS_BORDER_360x288_128 3397      // START OF BORDER 128 FULL (formula 3393 + 4)
+#define TS_BORDER_360x288_PENTAGON 7209 // START OF BORDER PENTAGON FULL (formula 7205 + 4)
+
+#define TS_BORDER_360x240 8939          // START OF BORDER 48 HALF (formula 8935 + 4)
+#define TS_BORDER_360x240_128 8869      // START OF BORDER 128 HALF (formula 8865 + 4)
+#define TS_BORDER_360x240_PENTAGON 12585 // START OF BORDER PENTAGON HALF (formula 12581 + 4)
+
+// Colors as 8-bit palette indices (VGA8 mode)
+// Standard Spectrum color order: 0-7 normal, 8-15 bright, 16 orange
+#define BLACK       0
+#define BLUE        1
+#define RED         2
+#define MAGENTA     3
+#define GREEN       4
+#define CYAN        5
+#define YELLOW      6
+#define WHITE       7
+#define BRI_BLACK   8
+#define BRI_BLUE    9
+#define BRI_RED     10
+#define BRI_MAGENTA 11
+#define BRI_GREEN   12
+#define BRI_CYAN    13
+#define BRI_YELLOW  14
+#define BRI_WHITE   15
+#define ORANGE      16
+
+#define NUM_SPECTRUM_COLORS 17
+
+class SaveRectT {
+  std::list<size_t> offsets;
+  std::vector<uint8_t> ram_buf; // RAM fallback when no SD card
+public:
+  SaveRectT() : offsets() {
+    offsets.push_back(0);
+  }
+  void save(int16_t x, int16_t y, int16_t w, int16_t h);
+  void restore_last();
+  void clear() { offsets.clear(); offsets.push_back(0); ram_buf.clear(); f_unlink("/tmp/save_rect.tmp"); }
+  void store_ram(const void* p, size_t sz);
+  void restore_ram(void* p, size_t sz);
+};
+
+#if !PICO_RP2040
+void initGigascreenBlendLUT();
+#endif
+
+class VIDEO
+{
+public:
+
+  // Initialize video
+  static void Init();
+    
+  // Reset video
+  static void Reset();
+
+#ifdef VGA_HDMI
+  // Hot video mode switch (no reboot)
+  static void changeMode();
+#endif
+
+  // Video draw functions
+  static void EndFrame();
+  static void Blank(unsigned int statestoadd, bool contended);
+  static void Blank_Opcode(bool contended);
+  static void Blank_Snow(unsigned int statestoadd, bool contended);
+  static void Blank_Snow_Opcode(bool contended);
+  // 48 / 128
+  static void MainScreen_Blank(unsigned int statestoadd, bool contended);
+  static void MainScreen_Blank_Opcode(bool contended);
+  static void MainScreen(unsigned int statestoadd, bool contended);
+  static void MainScreen_OSD(unsigned int statestoadd, bool contended);
+  static void MainScreen_Opcode(bool contended);
+  static void MainScreen_OSD_Opcode(bool contended);
+  static void MainScreen_Blank_Snow(unsigned int statestoadd, bool contended);
+  static void MainScreen_Blank_Snow_Opcode(bool contended);
+  static void MainScreen_Snow(unsigned int statestoadd, bool contended);
+  static void MainScreen_Snow_Opcode(bool contended);
+  
+  // static void DrawBorderFast();
+#if !PICO_RP2040
+  static void InitPrevBuffer();
+#endif
+
+  static void Border_Blank();
+
+  // Unified border functions (all models, all resolutions)
+  static void TopBorder_Blank();
+  static void TopBorder();
+  static void MiddleBorder();
+  static void BottomBorder();
+  static void BottomBorder_OSD();
+  
+  static void (*Draw)(unsigned int, bool);
+  static void (*Draw_Opcode)(bool);
+  static void (*Draw_OSD169)(unsigned int, bool);
+  static void (*Draw_OSD43)();
+  
+  static void (*DrawBorder)();
+
+  static void vgataskinit(void *unused);
+
+  static uint8_t* grmem;
+
+  static uint16_t spectrum_colors[NUM_SPECTRUM_COLORS];
+
+  static uint16_t offBmp[SPEC_H];
+  static uint16_t offAtt[SPEC_H];
+
+  static VGA8Bit vga;
+
+  static uint8_t borderColor;
+  static uint32_t border32[8];
+  static uint32_t brd;
+  static bool brdChange;
+  static bool brdnextframe;
+  static bool brdGigascreenChange;
+  static uint32_t lastBrdTstate;
+
+  static uint8_t tStatesPerLine;
+  static int tStatesScreen;
+  static int tStatesBorder;  
+
+  static uint8_t flashing;
+  static uint8_t flash_ctr;
+
+  static uint8_t att1;
+  static uint8_t bmp1;
+  static uint8_t att2;
+  static uint8_t bmp2;
+  // static bool opCodeFetch;
+
+  static uint8_t dispUpdCycle;
+  static bool snow_att;
+  static bool dbl_att;
+  static uint8_t lastbmp;
+  static uint8_t lastatt;    
+  static uint8_t snowpage;
+  static uint8_t snowR;
+  static bool snow_toggle;
+  
+  #ifdef DIRTY_LINES
+  static uint8_t dirty_lines[SPEC_H];
+  // static uint8_t linecalc[SPEC_H];
+  #endif // DIRTY_LINES
+ 
+  static uint8_t OSD;
+
+  static SaveRectT SaveRect;
+
+///  static TaskHandle_t videoTaskHandle;
+
+  static int VsyncFinetune[2];
+
+  static uint32_t framecnt; // Frames elapsed
+
+  static int video_mode;
+
+  // Video mode helper methods
+  static uint8_t activeVideoMode() {
+#ifdef VGA_HDMI
+    extern bool SELECT_VGA;
+    return SELECT_VGA ? Config::vga_video_mode : Config::hdmi_video_mode;
+#else
+    return Config::hdmi_video_mode;
+#endif
+  }
+  static bool isFullBorderMode() { return activeVideoMode() >= Config::VM_720x480_60; }
+  static bool isFullBorder240()  { return activeVideoMode() == Config::VM_720x480_60; }
+  static bool isFullBorder288()  { return activeVideoMode() >= Config::VM_720x576_60; }
+
+  static bool gigascreen_enabled;
+  static uint8_t gigascreen_auto_countdown;
+
+  // Timex SCLD video modes
+#if !PICO_RP2040
+  static uint8_t timex_port_ff;   // bits 0-5 of port 0xFF
+  static uint8_t timex_mode;      // cached (timex_port_ff & 7)
+  static uint8_t timex_hires_ink; // mode 6: ink palette index (0-7)
+#endif
+
+  // ULA+
+#if !PICO_RP2040
+  static bool ulaplus_enabled;
+  static uint8_t ulaplus_reg;
+  static uint8_t ulaplus_palette[64];
+  static bool ulaplus_palette_dirty;  // deferred palette flush for HDMI sync
+  // AluBytesUlaPlus moved to flash (AluBytesUlaPlus_flash in roms/AluBytesUlaPlus.c)
+  static void regenerateUlaPlusAluBytes();
+  static void ulaPlusUpdatePaletteEntry(uint8_t entry);
+  static void ulaPlusFlushPalette();   // apply pending palette to hardware
+  static void ulaPlusUpdateBorder();
+  static void ulaPlusDisable();
+#endif
+
+  // Palette transform (Default, Grayscale, etc.)
+  static void applyPalette();
+
+  // Fill 256-entry BMP palette (1024 bytes, BGRA format) matching current VGA palette
+  static void getBmpPalette(uint8_t* out);
+
+  // Custom palettes loaded from /palette.nvs
+  static void loadCustomPalettes();
+  static uint8_t paletteCount();           // built-in + custom
+  static const char* paletteName(uint8_t idx); // name for menu display
+};
+
+#define zxColor(color,bright) VIDEO::spectrum_colors[bright ? color + 8 : color]
+
+#endif // VIDEO_h

@@ -1,0 +1,693 @@
+/*
+
+ESPectrum, a Sinclair ZX Spectrum emulator for Espressif ESP32 SoC
+
+Copyright (c) 2023, 2024 Víctor Iborra [Eremus] and 2023 David Crespo
+[dcrespo3d] https://github.com/EremusOne/ZX-ESPectrum-IDF
+
+Based on ZX-ESPectrum-Wiimote
+Copyright (c) 2020, 2022 David Crespo [dcrespo3d]
+https://github.com/dcrespo3d/ZX-ESPectrum-Wiimote
+
+Based on previous work by Ramón Martinez and Jorge Fuertes
+https://github.com/rampa069/ZX-ESPectruma
+
+Original project by Pete Todd
+https://github.com/retrogubbins/paseVGA
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+To Contact the dev team you can write to zxespectrum@gmail.com or
+To Contact the dev team you can write to zxespectrum@gmail.com or
+visit https://zxespectrum.speccy.org/contacto
+
+*/
+
+#include "Ports.h"
+#include "AySound.h"
+#include "CPU.h"
+#include "Config.h"
+#include "ESPectrum.h"
+#include "MemESP.h"
+#include "Tape.h"
+#include "Video.h"
+#include "Z80_JLS/z80.h"
+#include "pwm_audio.h"
+#include "roms.h"
+#include "wd1793.h"
+#include "Debug.h"
+
+#include "OSDMain.h"
+
+#include "Midi.h"
+#include "Z80DMA.h"
+#if !PICO_RP2040
+#include "DivMMC.h"
+#include "hardware/gpio.h"
+#include "sdcard.h"
+#endif
+
+// Place hot port functions in SRAM instead of XIP flash
+#undef IRAM_ATTR
+#define IRAM_ATTR __not_in_flash("ports")
+
+#pragma GCC optimize("O3")
+
+// Values calculated for BEEPER, EAR, MIC bit mask (values 0-7)
+// Taken from FPGA values suggested by Rampa
+//   0: ula <= 8'h00;
+//   1: ula <= 8'h24;
+//   2: ula <= 8'h40;
+//   3: ula <= 8'h64;
+//   4: ula <= 8'hB8;
+//   5: ula <= 8'hC0;
+//   6: ula <= 8'hF8;
+//   7: ula <= 8'hFF;
+// and adjusted for BEEPER_MAX_VOLUME = 97
+uint8_t Ports::speaker_values[8] = {0, 19, 34, 53, 97, 101, 130, 134};
+uint8_t Ports::port[128];
+uint8_t Ports::port254 = 0;
+uint8_t Ports::portAFF7 = 0;
+
+uint8_t (*Ports::getFloatBusData)() = &Ports::getFloatBusData48;
+
+IRAM_ATTR uint8_t Ports::getFloatBusData48() {
+
+  unsigned int currentTstates = CPU::tstates;
+
+  unsigned int line = (currentTstates / 224) - 64;
+  if (line >= 192)
+    return 0xFF;
+
+  unsigned char halfpix = (currentTstates % 224) - 3;
+  if ((halfpix >= 125) || (halfpix & 0x04))
+    return 0xFF;
+
+  int hpoffset = (halfpix >> 2) + ((halfpix >> 1) & 0x01);
+  ;
+
+  if (halfpix & 0x01)
+    return (VIDEO::grmem[VIDEO::offAtt[line] + hpoffset]);
+
+  return (VIDEO::grmem[VIDEO::offBmp[line] + hpoffset]);
+}
+
+IRAM_ATTR uint8_t Ports::getFloatBusData128() {
+
+  unsigned int currentTstates = CPU::tstates - 1;
+
+  unsigned int line = (currentTstates / 228) - 63;
+  if (line >= 192)
+    return 0xFF;
+
+  unsigned char halfpix = currentTstates % 228;
+  if ((halfpix >= 128) || (halfpix & 0x04))
+    return 0xFF;
+
+  int hpoffset = (halfpix >> 2) + ((halfpix >> 1) & 0x01);
+  ;
+
+  if (halfpix & 0x01)
+    return (VIDEO::grmem[VIDEO::offAtt[line] + hpoffset]);
+
+  return (VIDEO::grmem[VIDEO::offBmp[line] + hpoffset]);
+}
+
+static uint32_t p_states;
+
+IRAM_ATTR void Ports::FDDStep(bool force) {
+
+  CPU::tstates_diff += p_states - CPU::prev_tstates;
+
+  if (force ||
+      ((ESPectrum::fdd.control & (kRVMWD177XHLD | kRVMWD177XHLT)) != 0))
+    rvmWD1793Step(&ESPectrum::fdd, CPU::tstates_diff / WD177XSTEPSTATES); // FDD
+
+  CPU::tstates_diff = CPU::tstates_diff % WD177XSTEPSTATES;
+
+  CPU::prev_tstates = p_states;
+}
+
+extern int ram_pages, butter_pages, psram_pages, swap_pages;
+
+inline static size_t extendedZxRamPages() {
+  if (Z80Ops::is128)
+    return 8;
+  return 4;
+}
+
+IRAM_ATTR uint8_t Ports::input(uint16_t address) {
+  uint8_t data;
+  if (Config::numPortReadBP > 0 && Config::hasBreakPoint(address, Config::BP_PORT_READ))
+    CPU::portBasedBP = true;
+  uint8_t rambank = address >> 14;
+  p_states = CPU::tstates;
+
+  // Early contention depends on ADDRESS (contended memory?), not port type
+  // Wiki: ULA port non-contended addr = N:1,C:3; contended addr = C:1,C:3
+  //        Non-ULA contended addr = C:1,C:1,C:1,C:1; non-contended = N:4
+  VIDEO::Draw(1, MemESP::ramContended[rambank]); // I/O Contention (Early)
+
+  if (MEM_PG_CNT > 64 && address == 0xAFF7) {
+    return portAFF7;
+  }
+  uint8_t p8 = address & 0xFF;
+  // ULA PORT
+  if ((address & 0x0001) == 0) {
+    VIDEO::Draw(3, true); // I/O Contention (Late)
+    data = 0xbf; // default port value is 0xBF.
+    uint8_t portHigh = ~(address >> 8) & 0xff;
+    for (int row = 0, mask = 0x01; row < 8; row++, mask <<= 1) {
+      if ((portHigh & mask) != 0)
+        data &= port[row];
+    }
+    if (Tape::TapePortRead()) return data;
+    // Turbo loaders at 0xFE00+ write to port254 to set border colors, which
+    // on Issue2 hardware feeds bit3 back into EAR input (bit6), inverting
+    // the tape signal. Bypass port254 feedback for turbo loaders.
+    if (Tape::tapeStatus == TAPE_LOADING && Z80::getRegPC() >= 0xFE00) {
+      if (Tape::tapeEarBit)
+        data |= 0x40;
+    } else {
+      if ((Z80Ops::is48) &&
+          (Config::Issue2)) { // Issue 2 behaviour only on Spectrum 48K
+        if (port254 & 0x18)
+          data |= 0x40;
+      } else {
+        if (port254 & 0x10)
+          data |= 0x40;
+      }
+      if (Tape::tapeEarBit)
+        data ^= 0x40;
+    }
+  } else {
+    ioContentionLate(MemESP::ramContended[rambank]);
+#if !PICO_RP2040
+    // ULA+ data port read
+    if (Config::ulaplus && address == 0xFF3B) {
+      uint8_t reg = VIDEO::ulaplus_reg;
+      if ((reg & 0xC0) == 0x00)
+        return VIDEO::ulaplus_palette[reg & 0x3F];
+      else
+        return VIDEO::ulaplus_enabled ? 1 : 0;
+    }
+    // ShamaZX MIDI — status read from 0xA1CF
+    // Bit 6 = "receiver full" — reflect real UART FIFO state
+    // enabled 2=ShamaZX HW, 3=Soft Synth (both use ShamaZX ports)
+    if (Midi::enabled >= 2 && address == 0xA1CF) {
+      return Midi::busy() ? 0x40 : 0x00;
+    }
+    // ShamaZX MIDI — read from 0xA0CF (parallel mode handshake)
+    if (Midi::enabled >= 2 && address == 0xA0CF) {
+      return 0x00;
+    }
+    // Timex SCLD port read (port 0x00FF) — skip when TR-DOS is active (port conflict)
+    if (Config::timex_video && !ESPectrum::trdos && address == 0x00FF) {
+      ioContentionLate(MemESP::ramContended[rambank]);
+      return VIDEO::timex_port_ff;
+    }
+    // Z80 DMA / zxnDMA port read: listen on both 0x0B and 0x6B
+    if (Config::dma_mode && ((address & 0xFF) == 0x0B || (address & 0xFF) == 0x6B)) {
+      ioContentionLate(MemESP::ramContended[rambank]);
+      return Z80DMA::readPort();
+    }
+#endif
+    // The default port value is 0xFF.
+    data = 0xff;
+
+#if !PICO_RP2040
+    if (DivMMC::enabled) {
+      uint8_t lo = address & 0xFF;
+      if (lo == 0xE3) {
+        return (DivMMC::conmem ? 0x80 : 0) | (DivMMC::mapram ? 0x40 : 0) | DivMMC::bank;
+      }
+      if (DivMMC::divide_mode) {
+        if ((lo & 0xE3) == 0xA3) {
+          uint8_t reg = (lo >> 2) & 0x07;
+          return DivMMC::ide_read(reg);
+        }
+      } else {
+        if (lo == 0xEB) {
+          return DivMMC::mmc_read();
+        }
+        if (lo == 0xE7) {
+          return 0xFF;
+        }
+      }
+    }
+#endif
+
+    // Beta-128 ports: accessible when TR-DOS ROM is paged in,
+    // or when a raw-format disk (UDI/FDI) is inserted (copy-protected loaders
+    // access WD1793 ports from RAM with TR-DOS ROM paged out)
+    if (ESPectrum::trdos
+#if !PICO_RP2040
+        || (ESPectrum::fdd.disk[ESPectrum::fdd.diskS] &&
+            (ESPectrum::fdd.disk[ESPectrum::fdd.diskS]->IsUDIFile || ESPectrum::fdd.disk[ESPectrum::fdd.diskS]->IsFDIFile))
+#endif
+    ) {
+
+      uint8_t dat;
+
+      switch (address & 0xe3) {
+      case 0x03:
+      case 0x23:
+      case 0x43:
+      case 0x63:
+        FDDStep(false);
+
+        return rvmWD1793Read(&ESPectrum::fdd, ((address >> 5) & 0x3));
+
+      case 0xe3: {
+        FDDStep(true);
+
+        uint8_t v = 0;
+        if (ESPectrum::fdd.control & kRVMWD177XDRQ)
+          v |= 0x40;
+        if (ESPectrum::fdd.control & (kRVMWD177XINTRQ | kRVMWD177XFINTRQ))
+          v |= 0x80;
+        return v;
+      }
+      }
+    }
+
+    /// if (ESPectrum::ps2mouse && Config::mouse == 1)
+    {
+      if ((address & 0x05ff) == 0x01df) {
+        return (uint8_t)ESPectrum::mouseX;
+      }
+      if ((address & 0x05ff) == 0x05df) {
+        return (uint8_t)ESPectrum::mouseY;
+      }
+      if ((address & 0x05ff) == 0x00df) {
+        return 0xff & (ESPectrum::mouseButtonL ? 0xfd : 0xff) &
+               (ESPectrum::mouseButtonR ? 0xfe : 0xff);
+      }
+    }
+
+    // Kempston Joystick
+    // Standard Kempston decodes A5=0 (so port 0x1F catches 0x00..0x1F).
+    // Non-standard kempstonPort values (0x37, 0x5F) use exact low-byte match.
+    if (Config::joystick == JOY_KEMPSTON) {
+      bool kempston_hit = (Config::kempstonPort == 0x1F)
+                              ? ((p8 & 0x20) == 0)
+                              : (p8 == Config::kempstonPort);
+      if (kempston_hit)
+        return port[Config::kempstonPort];
+    }
+
+    // Fuller Joystick
+    if (Config::joystick == JOY_FULLER && p8 == 0x7F)
+      return port[0x7f];
+
+    // Sound (AY-3-8912)
+    if (ESPectrum::AY_emu) {
+      if ((address & 0xC002) == 0xC000) {
+        return chips[AySound::selected_chip]->getRegisterData();
+      }
+    }
+    {
+      data = getFloatBusData();
+      if ((!Z80Ops::is48) && ((address & 0x8002) == 0)) {
+        // //  Solo en el modelo 128K, pero no en los +2/+2A/+3, si se lee el
+        // puerto
+        // //  0x7ffd, el valor leído es reescrito en el puerto 0x7ffd.
+        // //  http://www.speccy.org/foro/viewtopic.php?f=8&t=2374
+        if (!MemESP::pagingLock) {
+          MemESP::pagingLock = bitRead(data, 5);
+          uint32_t page = (data & 0x7);
+          if (MEM_PG_CNT > 64) {
+            page += portAFF7 * extendedZxRamPages();
+            uint32_t pages =
+                ram_pages + butter_pages + psram_pages + swap_pages;
+            if (page >= pages) {
+              page = (data &
+                      0x7); // W/A: protection of incorrect page selection logic
+            }
+          }
+          if (MemESP::bankLatch != page) {
+            MemESP::bankLatch = page;
+            MemESP::ramCurrent[3] = MemESP::ram[page].sync(3);
+            MemESP::ramContended[3] = page & 0x01 ? true : false;
+          }
+          if (MemESP::videoLatch != bitRead(data, 3)) {
+            MemESP::videoLatch = bitRead(data, 3);
+            VIDEO::grmem = MemESP::videoLatch ? MemESP::ram[7].direct()
+                                              : MemESP::ram[5].direct();
+            if (Config::gigascreen_onoff == 2) VIDEO::gigascreen_auto_countdown = 3;
+          }
+          MemESP::romLatch = bitRead(data, 4);
+          if (!ESPectrum::trdos) {
+            MemESP::romInUse = MemESP::romLatch;
+            MemESP::recoverPage0();
+          }
+        }
+      }
+    }
+  }
+  return data;
+}
+
+IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
+  int Audiobit;
+  if (Config::numPortWriteBP > 0 && Config::hasBreakPoint(address, Config::BP_PORT_WRITE))
+    CPU::portBasedBP = true;
+  uint8_t rambank = address >> 14;
+
+  // Early contention depends on ADDRESS only (contended memory?), not port type.
+  // Wiki: ULA port non-contended addr = N:1,C:3; contended addr = C:1,C:3
+  //       Non-ULA contended addr = C:1,C:1,C:1,C:1; non-contended = N:4
+  // Matches Ports::input behavior for symmetry.
+  VIDEO::Draw(1, MemESP::ramContended[rambank]); // I/O Contention (Early)
+  uint8_t a8 = (address & 0xFF);
+  p_states = CPU::tstates;
+
+  if (address == 0xAFF7) {
+    uint8_t prev = portAFF7;
+    uint8_t d6 = data & 0b00111111; // limit it for 64 planes
+    if (prev != d6) {
+      portAFF7 = d6;
+      if (!MemESP::pagingLock) {
+        size_t zxPages = extendedZxRamPages();
+        uint32_t page = MemESP::bankLatch + d6 * zxPages - prev * zxPages;
+        uint32_t pages = ram_pages + butter_pages + psram_pages + swap_pages;
+        if (page < pages) { // W/A: protection of incorrect page selection logic
+          MemESP::bankLatch = page;
+          MemESP::ramCurrent[3] = MemESP::ram[page].sync(3);
+          MemESP::ramContended[3] = (page & 0x01) ? true : false;
+        }
+      }
+    }
+  }
+
+  // ULA =======================================================================
+  if ((address & 0x0001) == 0) {
+    port254 = data;
+    // Border color
+    if (VIDEO::borderColor != data) {
+      VIDEO::brdChange = true;
+      // Apply contention to align border change with ULA character cell
+      VIDEO::Draw(0, true);
+      VIDEO::DrawBorder();
+      VIDEO::borderColor = data & 0x07;
+#if !PICO_RP2040
+      if (VIDEO::ulaplus_enabled)
+        VIDEO::ulaPlusUpdateBorder();
+      else
+#endif
+        VIDEO::brd = VIDEO::border32[VIDEO::borderColor];
+    }
+    if (Config::tape_player)
+      Audiobit = Tape::tapeEarBit ? 255 : 0; // For tape player mode
+    else
+      // Beeper Audio
+      Audiobit = speaker_values[((data >> 2) & 0x04) | (Tape::tapeEarBit << 1) |
+                                ((data >> 3) & 0x01)];
+    if (Audiobit != ESPectrum::lastaudioBit) {
+      ESPectrum::BeeperGetSample();
+      ESPectrum::lastaudioBit = Audiobit;
+    }
+    // AY
+    // ========================================================================
+    if ((ESPectrum::AY_emu) && ((address & 0x8002) == 0x8000)) {
+      if ((address & 0x4000) != 0) {
+        chips[AySound::selected_chip]->selectRegister(data);
+      } else {
+        if (Tape::tapeStatus != TAPE_LOADING) ESPectrum::AYGetSample();
+        chips[AySound::selected_chip]->setRegisterData(data);
+      }
+      VIDEO::Draw(3, true); // I/O Contention (Late)
+      return;
+    }
+    VIDEO::Draw(3, true); // I/O Contention (Late)
+  } else {
+#if !PICO_RP2040
+    // ULA+ ports (odd addresses: 0xBF3B register select, 0xFF3B data)
+    if (Config::ulaplus) {
+      if (address == 0xBF3B) {
+        VIDEO::ulaplus_reg = data;
+        ioContentionLate(MemESP::ramContended[rambank]);
+        return;
+      }
+      if (address == 0xFF3B) {
+        uint8_t reg = VIDEO::ulaplus_reg;
+        if ((reg & 0xC0) == 0x00) {
+          // Palette group write
+          VIDEO::ulaplus_palette[reg & 0x3F] = data;
+          if (VIDEO::ulaplus_enabled) {
+            VIDEO::ulaPlusUpdatePaletteEntry(reg & 0x3F);
+            if ((reg & 0x3F) == (8 + VIDEO::borderColor))
+              VIDEO::ulaPlusUpdateBorder();
+          }
+        } else if ((reg & 0xC0) == 0x40) {
+          // Mode group write
+          bool new_on = data & 0x01;
+          if (new_on && !VIDEO::ulaplus_enabled) {
+            VIDEO::ulaplus_enabled = true;
+            VIDEO::flashing = 0;
+            VIDEO::regenerateUlaPlusAluBytes();
+            VIDEO::ulaPlusUpdateBorder();
+          } else if (!new_on && VIDEO::ulaplus_enabled) {
+            VIDEO::ulaPlusDisable();
+          }
+        }
+        ioContentionLate(MemESP::ramContended[rambank]);
+        return;
+      }
+    }
+#endif
+    int covox = Config::covox;
+    if ((covox == 1 && a8 == 0xFB) || (covox == 2 && a8 == 0xDD)) {
+      ESPectrum::lastCovoxVal = data;
+      ESPectrum::CovoxGetSample();
+    }
+#if !PICO_RP2040
+    // ShamaZX MIDI Interface (SAM2695)
+    // 0xA0CF = control port: TX data byte here
+    // 0xA1CF = data port: write 0xFF/0x3F for init, read status (bit 6 = receiver full)
+    if (Midi::enabled >= 2 && address == 0xA0CF) {
+      Midi::send(data);
+      return;
+    }
+    // Z80 DMA / zxnDMA port write: listen on both 0x0B and 0x6B
+    if (Config::dma_mode && (a8 == 0x0B || a8 == 0x6B)) {
+      Z80DMA::writePort(data);
+      ioContentionLate(MemESP::ramContended[rambank]);
+      return;
+    }
+    // Timex SCLD video mode register (port 0x00FF, bit 8 clear)
+    // Skip when TR-DOS is active — port 0xFF is the Beta-128 system register
+    if (Config::timex_video && !ESPectrum::trdos && a8 == 0xFF && !(address & 0x0100)) {
+      VIDEO::timex_port_ff = data & 0x3F;
+      VIDEO::timex_mode = data & 0x07;
+      VIDEO::timex_hires_ink = (data >> 3) & 0x07;
+      ioContentionLate(MemESP::ramContended[rambank]);
+      return;
+    }
+#endif
+    // AY
+    // ========================================================================
+    if ((ESPectrum::AY_emu) &&
+        (Config::turbosound == 1 || Config::turbosound == 3) &&
+        address == 0xFFFD) { // NedoPC way
+      if (data == 0xFF) {
+        AySound::selected_chip = 0;
+      } else if (data == 0xFE) {
+        AySound::selected_chip = 1;
+      }
+    }
+    if ((ESPectrum::AY_emu) && ((address & 0x8002) == 0x8000)) {
+      if (a8 == 0xFF) { // Old TS way
+        AySound::selected_chip = 0;
+      } else if (a8 == 0xFE && Config::turbosound > 1) {
+        AySound::selected_chip = 1;
+      } else if ((address & 0x4000) != 0) {
+        chips[AySound::selected_chip]->selectRegister(data);
+      } else {
+        if (Tape::tapeStatus != TAPE_LOADING) ESPectrum::AYGetSample();
+        chips[AySound::selected_chip]->setRegisterData(data);
+      }
+      ioContentionLate(MemESP::ramContended[rambank]);
+      return;
+    }
+#if !PICO_RP2040
+    if (DivMMC::enabled) {
+      uint8_t lo = address & 0xFF;
+      if (lo == 0xE3) {
+        DivMMC::bank = data & (DIVMMC_NUM_BANKS - 1);
+        if (data & 0x40) DivMMC::mapram = true;
+        DivMMC::conmem = (data & 0x80) != 0;
+        DivMMC::applyMapping();
+        return;
+      }
+      if (DivMMC::divide_mode) {
+        if ((lo & 0xE3) == 0xA3) {
+          uint8_t reg = (lo >> 2) & 0x07;
+          DivMMC::ide_write(reg, data);
+          return;
+        }
+      } else {
+        if (lo == 0xEB) {
+          DivMMC::mmc_write(data);
+          return;
+        }
+        if (lo == 0xE7) {
+          DivMMC::mmc_cs(data);
+          return;
+        }
+      }
+    }
+#endif
+
+    // Check if TRDOS Rom is mapped.
+    if (ESPectrum::trdos) {
+
+      switch (address & 0xe3) {
+
+      case 0x03:
+      case 0x23:
+      case 0x43:
+      case 0x63:
+        FDDStep(false);
+        rvmWD1793Write(&ESPectrum::fdd, ((address >> 5) & 0x3), data);
+        break;
+      case 0xe3:
+
+        FDDStep(true);
+
+        // Change active disk unit
+        if (ESPectrum::fdd.diskS != (data & 0x3)) {
+          ESPectrum::fdd.diskS = data & 0x3;
+          if (ESPectrum::fdd.disk[ESPectrum::fdd.diskS] != NULL &&
+              ESPectrum::fdd.side &&
+              ESPectrum::fdd.disk[ESPectrum::fdd.diskS]->sides == 1)
+            ESPectrum::fdd.side = 0;
+          ESPectrum::fdd.sclConverted = false;
+        }
+
+        if (!(data & 0x4)) {
+          rvmWD1793Reset(&ESPectrum::fdd);
+        }
+
+        if (data & 0x8)
+          ESPectrum::fdd.control |= kRVMWD177XTest;
+        else
+          ESPectrum::fdd.control &= ~kRVMWD177XTest;
+
+        if (data & 0x10)
+          ESPectrum::fdd.side = 0;
+        else {
+          if (ESPectrum::fdd.disk[ESPectrum::fdd.diskS] != NULL)
+            ESPectrum::fdd.side =
+                ESPectrum::fdd.disk[ESPectrum::fdd.diskS]->sides == 1 ? 0 : 1;
+          else
+            ESPectrum::fdd.side = 1;
+        }
+
+        if (data & 0x40)
+          ESPectrum::fdd.control |= kRVMWD177XDDEN;
+        else
+          ESPectrum::fdd.control &= ~kRVMWD177XDDEN;
+
+        break;
+      }
+    }
+    ioContentionLate(MemESP::ramContended[rambank]);
+  }
+  // 128K paging — port 0x7FFD
+  // ==================================================================
+  if ((!Z80Ops::is48) && ((address & 0x8002) == 0)) { // 8002 !-> 7FFD
+    if (!MemESP::pagingLock) {
+      uint8_t D5 = bitRead(data, 5);
+      MemESP::pagingLock = D5;
+      uint32_t page = (data & 0x7);
+      if (MEM_PG_CNT > 64) {
+        uint32_t pPlus = page + portAFF7 * extendedZxRamPages();
+        uint32_t pages = ram_pages + butter_pages + psram_pages + swap_pages;
+        if (pPlus <
+            pages) { // W/A: protection of incorrect page selection logic
+          page = pPlus;
+        }
+      }
+      if (MemESP::bankLatch != page) {
+        MemESP::bankLatch = page;
+        MemESP::ramCurrent[3] = MemESP::ram[page].sync(3);
+        MemESP::ramContended[3] = (page & 0x01) ? true : false;
+      }
+      MemESP::romLatch = bitRead(data, 4);
+      if (!ESPectrum::trdos) {
+        MemESP::romInUse = MemESP::romLatch;
+      }
+      if (!ESPectrum::trdos) MemESP::recoverPage0();
+      if (MemESP::videoLatch != bitRead(data, 3)) {
+        MemESP::videoLatch = bitRead(data, 3);
+        VIDEO::grmem = MemESP::videoLatch ? MemESP::ram[7].direct()
+                                          : MemESP::ram[5].direct();
+        if (Config::gigascreen_onoff == 2) VIDEO::gigascreen_auto_countdown = 3;
+      }
+    }
+  }
+}
+
+IRAM_ATTR void Ports::ioContentionLate(bool contend) {
+  if (contend) {
+    VIDEO::Draw(1, true);
+    VIDEO::Draw(1, true);
+    VIDEO::Draw(1, true);
+  } else {
+    VIDEO::Draw(3, false);
+  }
+}
+
+// DMA I/O: no contention, only side effects (border, AY, beeper)
+IRAM_ATTR void Ports::dmaOutput(uint16_t address, uint8_t data) {
+    if ((address & 0x0001) == 0) {
+        // ULA port (0xFE): border + beeper
+        port254 = data;
+        if (VIDEO::borderColor != (data & 0x07)) {
+            VIDEO::brdChange = true;
+            VIDEO::DrawBorder();
+            VIDEO::borderColor = data & 0x07;
+#if !PICO_RP2040
+            if (VIDEO::ulaplus_enabled)
+                VIDEO::ulaPlusUpdateBorder();
+            else
+#endif
+                VIDEO::brd = VIDEO::border32[VIDEO::borderColor];
+        }
+        int Audiobit;
+        Audiobit = speaker_values[((data >> 2) & 0x04) | (Tape::tapeEarBit << 1) |
+                                    ((data >> 3) & 0x01)];
+        if (Audiobit != ESPectrum::lastaudioBit) {
+            ESPectrum::BeeperGetSample();
+            ESPectrum::lastaudioBit = Audiobit;
+        }
+    } else if ((ESPectrum::AY_emu) && ((address & 0x8002) == 0x8000)) {
+        // AY
+        if ((address & 0x4000) != 0) {
+            chips[AySound::selected_chip]->selectRegister(data);
+        } else {
+            chips[AySound::selected_chip]->setRegisterData(data);
+        }
+    }
+}
+
+IRAM_ATTR uint8_t Ports::dmaInput(uint16_t address) {
+    // DMA read from I/O: return port value without contention
+    if ((address & 0x0001) == 0) {
+        // ULA port: keyboard + ear
+        return 0xFF; // no keys pressed
+    }
+    return 0xFF;
+}

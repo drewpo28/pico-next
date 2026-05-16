@@ -60,8 +60,6 @@ visit https://zxespectrum.speccy.org/contacto
 #include "Ports.h"
 #include "audio.h"
 #include "AySound.h"
-#include "Midi.h"
-#include "MidiSynth.h"
 #include "kbd_img.h"
 extern "C" void graphics_set_scanlines(bool enabled);
 extern "C" void graphics_set_dither(bool enabled);
@@ -1456,10 +1454,6 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                                                 if (Config::real_player) {
                                                     ESPectrum::aud_volume = ESP_VOLUME_MAX;
                                                     pwm_audio_set_volume(ESPectrum::aud_volume);
-#if defined(PICO_RP2350) && defined(MIDI_TX_PIN) && defined(LOAD_WAV_PIO) && (LOAD_WAV_PIO == MIDI_TX_PIN)
-                                                    if (Config::midi == 1 || Config::midi == 2)
-                                                        osdCenteredMsg(MSG_MIDI_PIN_CONFLICT[Config::lang], LEVEL_WARN, 3000);
-#endif
                                                 } else {
 #if LOAD_WAV_PIO
                                                     pcm_audio_in_stop();
@@ -2123,74 +2117,7 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                                 }
                             }
                         }
-#if !PICO_RP2040
                         else if (options_num == 5) {
-                            menu_level = 2;
-                            menu_curopt = 1;
-                            menu_saverect = true;
-                            while (1) {
-                                string midi_menu = MENU_MIDI[Config::lang];
-                                uint8_t prev_midi = Config::midi;
-                                midi_menu.replace(midi_menu.find("[O",0),2, prev_midi == 0 ? "[*" : "[ ");
-                                midi_menu.replace(midi_menu.find("[A",0),2, prev_midi == 1 ? "[*" : "[ ");
-                                midi_menu.replace(midi_menu.find("[S",0),2, prev_midi == 2 ? "[*" : "[ ");
-                                midi_menu.replace(midi_menu.find("[W",0),2, prev_midi == 3 ? "[*" : "[ ");
-                                uint8_t opt2 = menuRun(midi_menu);
-                                if (opt2 >= 1 && opt2 <= 4) {
-                                    Config::midi = opt2 - 1;
-                                    if (Config::midi != prev_midi) {
-                                        Midi::enabled = prev_midi;
-                                        Midi::deinit();
-                                        Midi::enabled = Config::midi;
-                                        if (Midi::enabled)
-                                            Midi::init();
-                                        Config::save();
-#if defined(MIDI_TX_PIN) && defined(LOAD_WAV_PIO) && (LOAD_WAV_PIO == MIDI_TX_PIN)
-                                        if ((Config::midi == 1 || Config::midi == 2) && Config::real_player)
-                                            osdCenteredMsg(MSG_MIDI_PIN_CONFLICT[Config::lang], LEVEL_WARN, 3000);
-#endif
-                                    }
-                                    // Software selected — open preset submenu
-                                    if (Config::midi == 3) {
-                                        menu_level = 3;
-                                        menu_curopt = 1;
-                                        menu_saverect = true;
-                                        string preset_menu = MENU_MIDI_PRESET[Config::lang];
-                                        static const char preset_marks[] = "GPCSROMY";
-                                        for (int p = 0; p < 8; p++) {
-                                            char mark[3] = { '[', preset_marks[p], '\0' };
-                                            auto pos = preset_menu.find(mark, 0);
-                                            if (pos != string::npos)
-                                                preset_menu.replace(pos, 2, Config::midi_synth_preset == p ? "[*" : "[ ");
-                                        }
-                                        uint8_t opt3 = menuRun(preset_menu);
-                                        if (opt3) {
-                                            Config::midi_synth_preset = opt3 - 1;
-                                            MidiSynth::preset = Config::midi_synth_preset;
-                                            Config::save();
-                                            VIDEO::SaveRect.restore_last();
-                                        }
-                                        menu_level = 2;
-                                        menu_curopt = opt2;
-                                        menu_saverect = false;
-                                    }
-                                    menu_curopt = opt2;
-                                    menu_saverect = false;
-                                } else {
-                                    menu_curopt = 5;
-                                    menu_level = 1;
-                                    break;
-                                }
-                            }
-                        }
-#endif
-                        else if (options_num ==
-#if !PICO_RP2040
-                            6
-#else
-                            5
-#endif
-                        ) {
                             menu_level = 2;
                             menu_curopt = 1;
                             menu_saverect = true;
@@ -6754,10 +6681,6 @@ void OSD::BoardInfo() {
     pos += snprintf(buf + pos, sizeof(buf) - pos,
         "  Butter PSRAM  : %d\n", BUTTER_PSRAM_GPIO);
 #endif
-#ifdef MIDI_TX_PIN
-    pos += snprintf(buf + pos, sizeof(buf) - pos,
-        "  MIDI TX       : %d\n", MIDI_TX_PIN);
-#endif
 #ifdef LOAD_WAV_PIO
     pos += snprintf(buf + pos, sizeof(buf) - pos,
         "  LOAD WAV      : %d\n", LOAD_WAV_PIO);
@@ -6888,26 +6811,6 @@ void OSD::EmulatorInfo() {
             pos += snprintf(buf + pos, sizeof(buf) - pos, " Covox          : On (#DD)\n");
         else
             pos += snprintf(buf + pos, sizeof(buf) - pos, " Covox          : Off\n");
-
-#if !PICO_RP2040
-        // MIDI
-        if (Config::midi == 0) {
-            pos += snprintf(buf + pos, sizeof(buf) - pos, " MIDI           : Off\n");
-        } else if (Config::midi == 3) {
-            static const char* presets[] = {
-                "GM", "Piano", "Chiptune", "Strings",
-                "Rock", "Organ", "MusicBox", "Synth"
-            };
-            int pi = Config::midi_synth_preset;
-            if (pi > 7) pi = 0;
-            pos += snprintf(buf + pos, sizeof(buf) - pos,
-                " MIDI           : Synth (%s)\n", presets[pi]);
-        } else {
-            pos += snprintf(buf + pos, sizeof(buf) - pos,
-                " MIDI           : %s\n",
-                Config::midi == 1 ? "AY bitbang" : "ShamaZX");
-        }
-#endif
 
         // Audio driver
         if (Config::audio_driver == 4)

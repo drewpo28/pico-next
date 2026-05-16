@@ -50,7 +50,6 @@ visit https://zxespectrum.speccy.org/contacto
 
 #include "OSDMain.h"
 
-#include "Midi.h"
 #include "Z80DMA.h"
 #if !PICO_RP2040
 #include "DivMMC.h"
@@ -201,16 +200,6 @@ IRAM_ATTR uint8_t Ports::input(uint16_t address) {
         return VIDEO::ulaplus_palette[reg & 0x3F];
       else
         return VIDEO::ulaplus_enabled ? 1 : 0;
-    }
-    // ShamaZX MIDI — status read from 0xA1CF
-    // Bit 6 = "receiver full" — reflect real UART FIFO state
-    // enabled 2=ShamaZX HW, 3=Soft Synth (both use ShamaZX ports)
-    if (Midi::enabled >= 2 && address == 0xA1CF) {
-      return Midi::busy() ? 0x40 : 0x00;
-    }
-    // ShamaZX MIDI — read from 0xA0CF (parallel mode handshake)
-    if (Midi::enabled >= 2 && address == 0xA0CF) {
-      return 0x00;
     }
     // Timex SCLD port read (port 0x00FF) — skip when TR-DOS is active (port conflict)
     if (Config::timex_video && !ESPectrum::trdos && address == 0x00FF) {
@@ -473,13 +462,6 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
       ESPectrum::CovoxGetSample();
     }
 #if !PICO_RP2040
-    // ShamaZX MIDI Interface (SAM2695)
-    // 0xA0CF = control port: TX data byte here
-    // 0xA1CF = data port: write 0xFF/0x3F for init, read status (bit 6 = receiver full)
-    if (Midi::enabled >= 2 && address == 0xA0CF) {
-      Midi::send(data);
-      return;
-    }
     // zxnDMA port write (port 0x6B)
     if (Config::dma_mode && a8 == 0x6B) {
       Z80DMA::writePort(data);

@@ -64,8 +64,6 @@ visit https://zxespectrum.speccy.org/contacto
 #if !PICO_RP2040
 #include "DivMMC.h"
 #endif
-#include "Midi.h"
-#include "MidiSynth.h"
 #include "Z80DMA.h"
 
 using namespace std;
@@ -189,11 +187,6 @@ uint32_t ESPectrum::audbufcntAY = 0;
 uint32_t ESPectrum::faudbufcntAY = 0;
 uint32_t ESPectrum::audbufcntCovox = 0;
 uint32_t ESPectrum::faudbufcntCovox = 0;
-
-#if !PICO_RP2040
-uint8_t ESPectrum::audioBufferMIDI_L[ESP_AUDIO_SAMPLES_PENTAGON] = {0};
-uint8_t ESPectrum::audioBufferMIDI_R[ESP_AUDIO_SAMPLES_PENTAGON] = {0};
-#endif
 
 ESPectrum::FDDSound ESPectrum::fddSound = {{}, 0xACE1, 0, false, 0, 12};
 const uint8_t ESPectrum::fdd_click_decay[12] = {48,36,27,20,15,11,8,6,4,3,2,1};
@@ -760,8 +753,6 @@ void ESPectrum::setup() {
   // Set samples per frame and AY_emu flag depending on arch
     AY_emu = Config::AY48;
 #if !PICO_RP2040
-    Midi::enabled = Config::midi;
-    if (Midi::enabled) Midi::init();
     if (Config::dma_mode) Z80DMA::reset();
 #endif
 
@@ -925,8 +916,6 @@ void ESPectrum::reset(uint8_t romInUse) {
 
   AY_emu = Config::AY48;
 #if !PICO_RP2040
-    Midi::enabled = Config::midi;
-    if (Midi::enabled) Midi::init();
     if (Config::dma_mode) Z80DMA::reset();
 #endif
 
@@ -1530,18 +1519,9 @@ void ESPectrum::loop() {
             if(Config::turbosound != 0 || AySound::selected_chip == 0) chip0.gen_sound(samplesPerFrame - faudbufcntAY , faudbufcntAY);
             if(Config::turbosound != 0 || AySound::selected_chip == 1) chip1.gen_sound(samplesPerFrame - faudbufcntAY , faudbufcntAY);
         }
-#if !PICO_RP2040
-        if (Midi::enabled == 3)
-        {
-          MidiSynth::gen_sound(audioBufferMIDI_L, audioBufferMIDI_R, samplesPerFrame);
-        }
-#endif
         // Hoist frame-invariant source flags outside the mix loop
         bool mix_chip0 = AY_emu && (Config::turbosound != 0 || AySound::selected_chip == 0);
         bool mix_chip1 = AY_emu && (Config::turbosound != 0 || AySound::selected_chip == 1);
-#if !PICO_RP2040
-        bool mix_midi = (Midi::enabled == 3);
-#endif
         bool fddSndEnabledMix = Config::trdosSoundLed;
         bool mix_fdd = fddSndEnabledMix && (fddSound.click_count > 0 || fddSound.motor_noise);
         for (int i = 0; i < samplesPerFrame; i++)
@@ -1557,12 +1537,6 @@ void ESPectrum::loop() {
             beeper_L += chip1.SamplebufAY_L[i];
             beeper_R += chip1.SamplebufAY_R[i];
           }
-#if !PICO_RP2040
-          if (mix_midi) {
-            beeper_L += audioBufferMIDI_L[i];
-            beeper_R += audioBufferMIDI_R[i];
-          }
-#endif
           audioBuffer_L[i] = beeper_L > 255 ? 255 : (beeper_L < 0 ? 0 : beeper_L);
           audioBuffer_R[i] = beeper_R > 255 ? 255 : (beeper_R < 0 ? 0 : beeper_R);
         }

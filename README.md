@@ -63,7 +63,6 @@ Best performance for case Pimoroni "Pico Plus 2" is used.
 - zxnDMA emulation: Port #6B (Spectrum Next / DATA-GEAR compatible) — RP2350 only.
 - Contended memory and contended I/O emulation.
 - AY-3-8912 / TurboSound emulation.
-- MIDI support: external UART output (AY bit-bang, ShamaZX) and built-in software synthesizer (RP2350 only).
 - Beeper & Mic emulation (Cobra’s Arc).
 - Dual keyboard support: you can connect two devices: first using PS/2 protocol and second using USB at the same time.
 - PS/2 Joystick emulation (Cursor, Sinclair, Kempston and Fuller).
@@ -143,51 +142,6 @@ For the 128K architecture, it can be either 16kb or 32kb. If it's 16kb, the seco
 It is important to note that for custom ROMs, fast loading of taps can be used, but the loading should be started manually, considering the possibility that the "traps" of the ROM loading routine might not work depending on the flashed ROM. For example, with Rodolfo Guerra's ROMs, both loading and recording traps using the SAVE command work perfectly.
 
 Finally, keep in mind that when updating the firmware, you will need to re-flash the custom ROMs afterward, so I recommend leaving the files "48custom.rom" and "128custom.rom" on the card for the custom ROMs you wish to use.
-
-## MIDI Support
-
-The emulator supports MIDI output on RP2350 boards only. Enable it in the OSD menu: **Audio → MIDI**.
-
-Three modes are available:
-
-- **AY** — Decodes bit-bang UART transmitted through AY-3-8912 register 14 (IOPortA, bit 2). Software like [zx-midiplayer](https://github.com/UzixLS/zx-midiplayer) uses this method in "128std" / "TS1" / "TS2" output modes. MIDI bytes are sent to an external synth via UART TX pin at 31250 baud.
-- **ShamaZX** — Emulates the ShamaZX parallel MIDI interface (SAM2695 synth module). Port 0xA0CF is used for TX data, port 0xA1CF for status (bit 6 = busy). This corresponds to the "ShamaZX" output mode in [zx-midiplayer](https://github.com/UzixLS/zx-midiplayer). Output via UART TX pin.
-- **Software** — Built-in software MIDI synthesizer. No external hardware needed — MIDI is synthesized directly on the RP2350 and mixed into the audio output. Supports 16-voice polyphony, General MIDI program changes, velocity, channel volume, expression, pan, and pitch bend. Works with both AY bit-bang and ShamaZX protocols. When Software mode is selected, a **Synth Preset** submenu appears with 8 presets:
-  - **GM** — General MIDI mapping: different waveforms per instrument family (triangle for piano/pipes, saw for strings/bass, square for organs/brass, noise for percussion).
-  - **Piano** — All instruments rendered as triangle wave with natural decay.
-  - **Chiptune** — All square wave with varied duty cycles, no filtering — classic 8-bit sound.
-  - **Strings** — All saw wave, slow attack, long sustain, warm low-pass filter.
-  - **Rock** — Bright and punchy: saw for most instruments, square for organ/brass/reed.
-  - **Organ** — All square wave (75% duty), sustained tone with minimal decay.
-  - **Music Box** — Triangle wave with fast decay and low sustain — delicate and percussive.
-  - **Synth** — All saw wave with medium low-pass filter.
-
-### MIDI TX Pin Configuration
-
-The MIDI TX pin is configured per board in `CMakeLists.txt` via `MIDI_TX_PIN`. Default values by board:
-
-| Board | MIDI_TX_PIN |
-|-------|-------------|
-| Murmulator | 22 |
-| Waveshare PiZero | 26 |
-| Pimoroni Pico DV | 21 |
-| Olimex RP2040-PICO-PC | 22 |
-
-**Note:** On Murmulator boards, MIDI TX and real tape input share the same pin (GPIO 22). When MIDI is enabled, real tape loading is disabled. Disable MIDI in the menu to use real tape input.
-
-### Connecting to Raspberry Pi 3/4 as MIDI Host
-
-You can use a Raspberry Pi 3 or 4 as a USB MIDI host with a hardware synth or software synthesizer (e.g. FluidSynth).
-
-**Wiring** (directly, no optocoupler needed for short connections):
-
-```
-RP2350 Board              Raspberry Pi 3/4
-─────────────             ────────────────
-MIDI_TX_PIN  ──────────── GPIO 15 (RXD, pin 10)
-+5V          ──────────── +5V (e.g. pin 2)
-GND          ──────────── GND (e.g. pin 6)
-```
 
 ## How to build
 ### Windows 10+

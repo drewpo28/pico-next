@@ -133,8 +133,6 @@ add_executable(${PROJECT_NAME} ${SRC})
 # Это важно для MinSizeRel (где по умолчанию -Os), чтобы не терять FPS
 set_source_files_properties(src/AySound.cpp PROPERTIES
     COMPILE_FLAGS "-O3 -ffast-math -funroll-loops")
-set_source_files_properties(src/MidiSynth.cpp PROPERTIES
-    COMPILE_FLAGS "-O3 -ffast-math -funroll-loops")
 set_source_files_properties(src/Video.cpp PROPERTIES
     COMPILE_FLAGS "-O3 -funroll-loops")
 # Z80 эмулятор — самый горячий код, критично для производительности
@@ -261,7 +259,6 @@ IF(MURM2)
         BEEPER_PIN=9 #
         PWM_PIN0=10 #
         PWM_PIN1=11
-        MIDI_TX_PIN=22
 
         # SDCARD
         SDCARD_PIN_SPI0_CS=5
@@ -357,7 +354,6 @@ ELSEIF(PICO_PC)
         BEEPER_PIN=26 # not implemented
         PWM_PIN0=27 # R
         PWM_PIN1=28 # L
-        MIDI_TX_PIN=26
 
         # SDCARD
         SDCARD_PIN_SPI0_MISO=4
@@ -397,10 +393,8 @@ ELSEIF(PICO_DV)
     if(PICO_DV_DBG_UART)
         pico_enable_stdio_uart(${PROJECT_NAME} 1)
         set(PICO_DV_LOAD_WAV_PIO 3)  # GP20 taken by UART → use FREE pin
-        set(MIDI_TX_PIN 3) # GP21 taken by UART → use FREE pin
     else()
         set(PICO_DV_LOAD_WAV_PIO 20)
-        set(MIDI_TX_PIN 21)
     endif()
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         DEBUG=0
@@ -433,7 +427,6 @@ ELSEIF(PICO_DV)
         PWM_PIN0=26 # R
         PWM_PIN1=27 # L
         BEEPER_PIN=28 # not implemented
-        MIDI_TX_PIN=${MIDI_TX_PIN}
 
         # SDCARD
         SDCARD_SPI_BUS=spi1
@@ -511,7 +504,6 @@ ELSEIF(ZERO2)
         PWM_PIN0=10
         PWM_PIN1=11
         BEEPER_PIN=12
-        MIDI_TX_PIN=22
 
         # SDCARD
         SDCARD_SPI_BUS=spi1

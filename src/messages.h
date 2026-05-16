@@ -794,7 +794,6 @@ static const char *MENU_FLASHLOAD[2] = { "Fast load\n" , "Carga rapida\n"};
 
 static const char *MENU_RGTIMINGS[2] = { "R.G. Timings\n" , "Timings R.G.\n"};
 
-#if PICO_RP2040
 #define MENU_AUDIO_EN "Audio\n"\
     "AY-3-8912 ON/OFF\t>\n"\
     "AY-3-8912 Stereo\t>\n"\
@@ -807,22 +806,6 @@ static const char *MENU_RGTIMINGS[2] = { "R.G. Timings\n" , "Timings R.G.\n"};
     "TurboSound\t>\n"\
     "Covox\t>\n"\
     "Controlador de audio\t>\n"
-#else
-#define MENU_AUDIO_EN "Audio\n"\
-    "AY-3-8912 ON/OFF\t>\n"\
-    "AY-3-8912 Stereo\t>\n"\
-    "TurboSound\t>\n"\
-    "Covox\t>\n"\
-    "MIDI\t>\n"\
-    "Audio Driver\t>\n"
-#define MENU_AUDIO_ES "Audio\n"\
-    "AY-3-8912 ON/OFF\t>\n"\
-    "AY-3-8912 Est" "\x82" "reo\t>\n"\
-    "TurboSound\t>\n"\
-    "Covox\t>\n"\
-    "MIDI\t>\n"\
-    "Controlador de audio\t>\n"
-#endif
 static const char *MENU_AUDIO[2] = { MENU_AUDIO_EN, MENU_AUDIO_ES };
 
 #define MENU_OTHER_EN "Other\n"\
@@ -933,37 +916,6 @@ static const char *MENU_OVERCLOCK[2] = { MENU_OVERCLOCK_EN, MENU_OVERCLOCK_ES };
 #endif
 
 static const char *MENU_AY48[2] = { "Turned on?\n" , "Turned on?\n"};
-
-#if !PICO_RP2040
-#define MENU_MIDI_EN "MIDI(Ext:P" _PIN_XSTR(MIDI_TX_PIN) ")\n"\
-    "OFF     \t[O]\n"\
-    "AY      \t[A]\n"\
-    "ShamaZX \t[S]\n"\
-    "Software\t[W]\n"
-#define MENU_MIDI_ES "MIDI(Ext:P" _PIN_XSTR(MIDI_TX_PIN) ")\n"\
-    "OFF     \t[O]\n"\
-    "AY      \t[A]\n"\
-    "ShamaZX \t[S]\n"\
-    "Software\t[W]\n"
-static const char *MENU_MIDI[2] = { MENU_MIDI_EN, MENU_MIDI_ES };
-#define MENU_MIDI_PRESET_EN "Synth Preset\n"\
-    "GM       \t[G]\n"\
-    "Piano    \t[P]\n"\
-    "Chiptune \t[C]\n"\
-    "Strings  \t[S]\n"\
-    "Rock     \t[R]\n"\
-    "Organ    \t[O]\n"\
-    "Music Box\t[M]\n"\
-    "Synth    \t[Y]\n"
-#define MENU_MIDI_PRESET_ES MENU_MIDI_PRESET_EN
-static const char *MENU_MIDI_PRESET[2] = { MENU_MIDI_PRESET_EN, MENU_MIDI_PRESET_ES };
-#if defined(MIDI_TX_PIN) && defined(LOAD_WAV_PIO) && (LOAD_WAV_PIO == MIDI_TX_PIN)
-static const char *MSG_MIDI_PIN_CONFLICT[2] = {
-    "MIDI and Real sound-in share GPIO " _PIN_XSTR(MIDI_TX_PIN) ".\nDisable one of them.",
-    "MIDI y Modo de sonido real comparten GPIO " _PIN_XSTR(MIDI_TX_PIN) ".\nDesactive uno de ellos."
-};
-#endif
-#endif
 
 #if !PICO_RP2040
 static const char *MENU_ULAPLUS[2] = { "ULA+\n", "ULA+\n"};

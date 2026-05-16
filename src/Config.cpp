@@ -27,10 +27,6 @@ const bool     Config::aspect_16_9 = false;
 ///uint8_t  Config::esp32rev = 0;
 uint8_t  Config::lang = 0;
 bool     Config::AY48 = true;
-#if !PICO_RP2040
-uint8_t  Config::midi = 0;
-uint8_t  Config::midi_synth_preset = 0;
-#endif
 uint16_t Config::cpu_mhz = CPU_MHZ;
 uint16_t Config::max_flash_freq = 66;
 uint16_t Config::max_psram_freq = 166;
@@ -344,10 +340,6 @@ void Config::load() {
         nvs_get_str("pref_romSet_128", pref_romSet_128, sts);
         nvs_get_str("ram", ram_file, sts);
         nvs_get_b("AY48", AY48, sts);
-#if !PICO_RP2040
-        nvs_get_u8("midi", midi, sts);
-        nvs_get_u8("midipreset", midi_synth_preset, sts);
-#endif
         nvs_get_u16("cpu_mhz", cpu_mhz, sts);
         if (cpu_mhz == 0) cpu_mhz = CPU_MHZ;
         nvs_get_u16("max_flash_freq", max_flash_freq, sts);
@@ -613,10 +605,6 @@ void Config::save() {
 ///        nvs_set_str(buf,"asp169",aspect_16_9 ? "true" : "false");
     nvs_set_u8(buf,"language", Config::lang);
     nvs_set_str(buf,"AY48", AY48 ? "true" : "false");
-#if !PICO_RP2040
-    nvs_set_u8(buf,"midi", midi);
-    nvs_set_u8(buf,"midipreset", midi_synth_preset);
-#endif
     nvs_set_u8(buf,"ayConfig", Config::ayConfig);
     nvs_set_u8(buf,"turbosound", Config::turbosound);
     nvs_set_u8(buf,"covox", Config::covox);

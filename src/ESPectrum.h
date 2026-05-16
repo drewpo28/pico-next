@@ -153,10 +153,6 @@ public:
         }
         return 0;
     }
-#if !PICO_RP2040
-    static uint8_t audioBufferMIDI_L[ESP_AUDIO_SAMPLES_PENTAGON];
-    static uint8_t audioBufferMIDI_R[ESP_AUDIO_SAMPLES_PENTAGON];
-#endif
     static int lastaudioBit;
     static int lastCovoxVal;
     static int faudioBit;

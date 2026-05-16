@@ -64,6 +64,7 @@ visit https://zxespectrum.speccy.org/contacto
 #include "DivMMC.h"
 #include "Z80DMA.h"
 #include "next/nextreg.h"
+#include "next/psram_ram.h"
 
 using namespace std;
 
@@ -736,6 +737,14 @@ void ESPectrum::setup() {
 
     NextReg::enabled = (Config::arch == "Next");
     NextReg::reset();
+    if (NextReg::enabled && !NextRAM::init()) {
+        // Without 2 MB of PSRAM we cannot host the Next RAM map. Refuse to
+        // run as Next and fall back to classic 128K so the user sees
+        // something on screen instead of a silent hang.
+        Debug::log("Next: NextRAM init failed, falling back to 128K");
+        NextReg::enabled = false;
+        Config::arch = "128K";
+    }
 
   if (Config::arch == "48K") {
     samplesPerFrame = ESP_AUDIO_SAMPLES_48;
@@ -900,6 +909,14 @@ void ESPectrum::reset(uint8_t romInUse) {
 
     NextReg::enabled = (Config::arch == "Next");
     NextReg::reset();
+    if (NextReg::enabled && !NextRAM::init()) {
+        // Without 2 MB of PSRAM we cannot host the Next RAM map. Refuse to
+        // run as Next and fall back to classic 128K so the user sees
+        // something on screen instead of a silent hang.
+        Debug::log("Next: NextRAM init failed, falling back to 128K");
+        NextReg::enabled = false;
+        Config::arch = "128K";
+    }
 
   // Set samples per frame and AY_emu flag depending on arch
   if (Config::arch == "48K") {

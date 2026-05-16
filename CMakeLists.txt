@@ -16,20 +16,13 @@ set(PICO_BOARD pico2 CACHE STRING "Board type")
 cmake_minimum_required(VERSION 3.13)
 
 option(VGA_HDMI "Enable VGA/HDMI driver" OFF)
-option(TFT "Enable TFT display" OFF)
-option(ILI9341 "Enable TFT ILI9341 display" OFF)
 option(MURM2 "Murmulator 2.0" OFF)
 option(PICO_PC "RP2350-PICO-PC" OFF)
 option(PICO_DV "RP2350-PICO-DV" OFF)
 option(ZERO2 "RP2350-PiZero" OFF)
 
-# set(TFT ON)
-# set(TFT_INV ON)
-# set(ILI9341 ON)
-# set(ST7789 ON)
-
-# Display output (default: VGA_HDMI; override with -D flags, e.g. cmake -DTFT=ON)
-if(NOT VGA_HDMI AND NOT TFT AND NOT ILI9341)
+# Display output (default: VGA_HDMI)
+if(NOT VGA_HDMI)
     set(VGA_HDMI ON)
 endif()
 
@@ -104,7 +97,6 @@ add_subdirectory(drivers/nespad)
 add_subdirectory(drivers/fatfs)
 add_subdirectory(drivers/sdcard)
 add_subdirectory(drivers/vga-nextgen)
-add_subdirectory(drivers/st7789)
 add_subdirectory(drivers/hdmi)
 add_subdirectory(drivers/graphics)
 add_subdirectory(drivers/psram)
@@ -165,7 +157,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     pico_multicore
     hardware_dma
     hardware_pio
-    hardware_i2c
     hardware_interp
     hardware_timer
     hardware_clocks
@@ -287,16 +278,6 @@ IF(MURM2)
 
         # HDMI 8 pins starts from pin:
         HDMI_BASE_PIN=12
-
-
-        # TFT
-        TFT_CS_PIN=12
-        TFT_RST_PIN=14
-        TFT_LED_PIN=15
-        TFT_DC_PIN=16
-        TFT_DATA_PIN=18
-        TFT_CLK_PIN=19
-        TFT_INV=${TFT_INV}
 
         DEFAULT_THROTTLING=0
         PICO_DEFAULT_LED_PIN=25
@@ -477,19 +458,11 @@ ELSEIF(ZERO2)
         CPU_MHZ=${CPU_MHZ}
         ZERO2=1
 
-        # PS2 keyboard (moved from GPIO 2/3 for PCM5122 I2C)
+        # PS2 keyboard
         KBD_CLOCK_PIN=14
         KBD_DATA_PIN=15
 
         LOAD_WAV_PIO=17
-
-        # PCM5122 Audio Board (I2S)
-        PCM5122_I2S_DATA=21
-        PCM5122_I2S_BCK=18
-        PCM5122_I2S_LCK=19
-        # PCM5122 Audio Board (I2C control)
-        PCM5122_I2C_SDA=2
-        PCM5122_I2C_SCL=3
 
         CLK_AY_PIN1=8 # not in use
         LATCH_595_PIN=10
@@ -542,25 +515,10 @@ ELSE()
     message(FATAL_ERROR "Unsupported board: enable one of MURM2, PICO_PC, PICO_DV, ZERO2")
 ENDIF()
 
-IF(TFT)
-    target_link_libraries(${PROJECT_NAME} PRIVATE st7789)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE TFT)
-    IF(ILI9341)
-        SET(BUILD_NAME "${BUILD_NAME}-ILI9341")
-        target_compile_definitions(${PROJECT_NAME} PRIVATE ILI9341)
-    ELSE()
-        IF(TFT_INV)
-            SET(BUILD_NAME "${BUILD_NAME}-ST7789V")
-        ELSE()
-            SET(BUILD_NAME "${BUILD_NAME}-ST7789")
-        ENDIF()
-    ENDIF()
-ELSE()
-    target_link_libraries(${PROJECT_NAME} PRIVATE hdmi)
-    target_link_libraries(${PROJECT_NAME} PRIVATE vga-nextgen)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE VGA_HDMI)
-    SET(BUILD_NAME "${BUILD_NAME}-VGA-HDMI")
-ENDIF()
+target_link_libraries(${PROJECT_NAME} PRIVATE hdmi)
+target_link_libraries(${PROJECT_NAME} PRIVATE vga-nextgen)
+target_compile_definitions(${PROJECT_NAME} PRIVATE VGA_HDMI)
+SET(BUILD_NAME "${BUILD_NAME}-VGA-HDMI")
 
 SET(BUILD_NAME "${BUILD_NAME}-${CPU_MHZ}MHz-${PORT_VERSION}")
 

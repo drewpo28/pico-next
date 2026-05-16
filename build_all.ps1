@@ -53,9 +53,6 @@ if (Get-Command ccache -ErrorAction SilentlyContinue) {
 }
 
 $AllTargets    = @("MURM2_P2", "PICO_PC", "PICO_DV", "ZERO2")
-$TftTargets    = @("MURM2_P2")
-$TftStTargets  = @()
-$SofttvTargets = @("MURM2_P2")
 
 if (-not $Targets -or $Targets.Count -eq 0) { $Targets = $AllTargets }
 
@@ -63,15 +60,6 @@ if (-not $Targets -or $Targets.Count -eq 0) { $Targets = $AllTargets }
 $BuildPairs = @()
 foreach ($Target in $Targets) {
     $BuildPairs += ,@{ Target = $Target; Display = "VGA_HDMI" }
-    if ($TftTargets -contains $Target) {
-        $BuildPairs += ,@{ Target = $Target; Display = "TFT_ILI9341" }
-    }
-    if ($TftStTargets -contains $Target) {
-        $BuildPairs += ,@{ Target = $Target; Display = "TFT_ST7789" }
-    }
-    if ($SofttvTargets -contains $Target) {
-        $BuildPairs += ,@{ Target = $Target; Display = "SOFTTV" }
-    }
 }
 
 Write-Host "=== pico-next multi-target build ==="
@@ -160,13 +148,6 @@ $Worker = {
         switch ($Target) {
             "MURM2_P2" { $TargetFlags = @("-DMURM2=ON", "-DMURM2_P2=ON") }
             default     { $TargetFlags = @("-D${Target}=ON") }
-        }
-        if ($Display -eq "TFT_ILI9341") {
-            $TargetFlags += @("-DTFT=ON", "-DILI9341=ON", "-DVGA_HDMI=OFF")
-        } elseif ($Display -eq "TFT_ST7789") {
-            $TargetFlags += @("-DTFT=ON", "-DST7789=ON", "-DVGA_HDMI=OFF")
-        } elseif ($Display -eq "SOFTTV") {
-            $TargetFlags += @("-DSOFTTV=ON", "-DVGA_HDMI=OFF")
         }
 
         $CMakeArgs = @(

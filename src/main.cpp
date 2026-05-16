@@ -7,7 +7,6 @@
 #include <pico/multicore.h>
 #include <pico/stdlib.h>
 #include <hardware/pio.h>
-#include <hardware/i2c.h>
 #include <hardware/vreg.h>
 #include <hardware/sync.h>
 #include <hardware/flash.h>
@@ -817,35 +816,23 @@ void repeat_me_for_input() {
 #endif
 }
 
-#ifdef VGA_HDMI
 extern "C" void hdmi_poll_reinit(void);
 extern "C" void vga_reinit(void);
-#endif
-#ifdef TFT
-extern "C" void refresh_lcd(void);
-#endif
 
 void __scratch_x("render") render_core() {
     multicore_lockout_victim_init();
     graphics_init();
-#ifdef VGA_HDMI
     // graphics_init() hardcodes line_VS_begin/end for 640x480 (490/491).
     // For 720x modes video_mode is already set by VIDEO::Reset() on core0,
     // so update vsync line numbers from the mode table now.
     extern bool SELECT_VGA;
     if (SELECT_VGA) vga_reinit();
-#endif
     graphics_set_buffer(NULL, get_framebuffer_width(), get_framebuffer_height());
     graphics_set_bgcolor(0x000000);
     graphics_set_flashmode(true, false);
     sem_acquire_blocking(&vga_start_semaphore);
     while (true) {
-#ifdef VGA_HDMI
         hdmi_poll_reinit();
-#endif
-#ifdef TFT
-        refresh_lcd();
-#endif
         pcm_call();
         tight_loop_contents();
     }

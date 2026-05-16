@@ -469,36 +469,6 @@ static const char *MENU_ESX_INSERT[2]    = { "Insert disk\t>\n", "Insertar disco
 static const char *MENU_ESX_EJECT[2]     = { "Eject disk\n",     "Expulsar disco\n" };
 #endif
 
-#if TFT
-#define MENU_MAIN_EN \
-	"Volume\n"\
-    "Storage\t>\n"\
-    "Audio\t>\n"\
-    "Video\t>\n"\
-	"Machine\t>\n"\
-    "Reset\t>\n"\
-    "Options\t>\n"\
-    "Debug\t>\n"\
-    "Hardware\t>\n"\
-    "ZX Keyboard\n"\
-    "Help\n"\
-    "About\n"\
-	"TFT\t>\n"
-#define MENU_MAIN_ES \
-    "Volumen\n"\
-    "Almacenamiento\t>\n"\
-    "Audio\t>\n"\
-    "Video\t>\n"\
-    "Modelo\t>\n"\
-    "Resetear\t>\n"\
-    "Opciones\t>\n"\
-	"Depurar\t>\n"\
-    "Hardware\t>\n"\
-    "Teclado ZX\n"\
-    "Ayuda\n"\
-    "Acerca de\n"\
-	"TFT\t>\n"
-#else
 #define MENU_MAIN_EN \
 	"Volume\n"\
     "Storage\t>\n"\
@@ -525,7 +495,6 @@ static const char *MENU_ESX_EJECT[2]     = { "Eject disk\n",     "Expulsar disco
     "Teclado ZX\n"\
     "Ayuda\n"\
     "Acerca de\n"
-#endif
 static const char *MENU_MAIN[2] = { MENU_MAIN_EN, MENU_MAIN_ES };
 
 #define MENU_MAIN_NO_SD_EN \
@@ -755,21 +724,6 @@ static const char *MENU_RESET[2] = { MENU_RESET_EN, MENU_RESET_ES };
     "MurmulatorOS\n"\
 	"Predeterminados\n"
 static const char *MENU_RESET_MOS[2] = { MENU_RESET_MOS_EN, MENU_RESET_MOS_ES };
-
-#define MENU_TFT_EN \
-    "TFT Menu\n"\
-    "INVERSION\n"\
-    "FLAGS\t>\n"\
-    "Defaults\n"
-static const char *MENU_TFT[2] = { MENU_TFT_EN, MENU_TFT_EN };
-
-#define MENU_TFT2_EN \
-    "TFT FLAGS\n"\
-    "RGB/BGR\n"\
-    "Flip X\n"\
-    "Flip Y\n"\
-    "Flip XY\n"
-static const char *MENU_TFT2[2] = { MENU_TFT2_EN, MENU_TFT2_EN };
 
 #define MENU_PERSIST_SAVE_EN \
     "Save snapshot\n"

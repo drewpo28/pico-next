@@ -12,9 +12,6 @@
 #if !PICO_RP2040 && defined(VGA_HDMI)
 #include "hdmi.h"
 #endif
-#ifdef PCM5122_I2S_DATA
-#include "pcm5122_init.h"
-#endif
 
 // connection is possible 00->00 (external pull down)
 static int test_0000_case(uint32_t pin0, uint32_t pin1, int res) {
@@ -255,10 +252,6 @@ static i2s_config_t i2s_config = {
         .program_offset = 0
 	};
 
-#ifdef PCM5122_I2S_DATA
-static bool pcm5122_detected = false;
-#endif
-
 static void PWM_init_pin(uint8_t pinN, uint16_t max_lvl) {
     pwm_config config = pwm_get_default_config();
     gpio_set_function(pinN, GPIO_FUNC_PWM);
@@ -287,33 +280,6 @@ void init_sound() {
         Debug::log("init_sound: HDMI audio mode");
         hdmi_audio_init();
         return;
-    }
-#endif
-#ifdef PCM5122_I2S_DATA
-    if (Config::audio_driver == 5) {
-        Debug::log("init_sound: PCM5122 mode (explicit)");
-        pcm5122_detected = pcm5122_init(PCM5122_I2C_SDA, PCM5122_I2C_SCL);
-        Debug::log("init_sound: PCM5122 detected=%d", (int)pcm5122_detected);
-        i2s_config.data_pin = PCM5122_I2S_DATA;
-        i2s_config.bck_pin = PCM5122_I2S_BCK;
-        i2s_config.lck_pin = PCM5122_I2S_LCK;
-        is_i2s_enabled = true;
-        i2s_volume(&i2s_config, 0);
-        return;
-    }
-    if (Config::audio_driver == 0) {
-        // Auto mode: probe PCM5122 via I2C before standard testPins
-        if (pcm5122_detect(PCM5122_I2C_SDA, PCM5122_I2C_SCL)) {
-            Debug::log("init_sound: PCM5122 detected in auto mode");
-            pcm5122_detected = true;
-            pcm5122_init(PCM5122_I2C_SDA, PCM5122_I2C_SCL);
-            i2s_config.data_pin = PCM5122_I2S_DATA;
-            i2s_config.bck_pin = PCM5122_I2S_BCK;
-            i2s_config.lck_pin = PCM5122_I2S_LCK;
-            is_i2s_enabled = true;
-            i2s_volume(&i2s_config, 0);
-            return;
-        }
     }
 #endif
     if (Config::audio_driver == 3) {

@@ -30,7 +30,7 @@ This is an emulator of the Sinclair ZX Spectrum compatible computers running on 
 Board supported:
  - "Murmulator 1.x" + Raspberry "Pi Pico" / "Pi Pico 2" or compatible;
  - "Murmulator 2.0" + Raspberry "Pi Pico" / "Pi Pico 2" or compatible;
- - Waveshare "RP2040-PiZero" / "RP2350-PiZero" + use PCM5122 for best sound;
+ - Waveshare "RP2040-PiZero" / "RP2350-PiZero";
  - Pimoroni "Pico DV Demo Base" + Raspberry "Pi Pico" / "Pi Pico 2" or compatible;
  - Olimex "RP2040-PICO-PC" board + Raspberry "Pi Pico" / "Pi Pico 2" or compatible.
 
@@ -50,8 +50,6 @@ Best performance for case Pimoroni "Pico Plus 2" is used.
 - VGA/HDMI scanlines effect.
 - HDMI dither effect for ULA+ (RP2350 only): optional Bayer-look palette dithering applied via ISR.
 - HDMI audio output (RP2350 only).
-- TV-composite video out.
-- PCM5122 I2S audio DAC support (Waveshare PiZero boards - https://www.waveshare.com/wiki/PCM5122-Audio-Board-A).
 - Multicolor attribute effects emulated (Bifrost*2, Nirvana and Nirvana+ engines).
 - Border effects emulated (Aquaplane, The Sentinel, Overscan demo).
 - Floating bus effect emulated (Arkanoid, Sidewize).
@@ -176,12 +174,7 @@ Your filesystem tree must be look like:
 | `-DPICO_DV=ON` | Build for Pimoroni Pico DV Demo Base |
 | `-DZERO2=ON` | Build for Waveshare RP2350-PiZero |
 | `-DVGA_HDMI=ON` | VGA/HDMI output (default) |
-| `-DSOFTTV=ON` | Software composite TV output |
-| `-DTV=ON` | Hardware composite TV output |
-| `-DTFT=ON` | TFT display output |
-| `-DILI9341=ON` | ILI9341 TFT display output |
 | `-DPICO_PC_DBG_UART=ON` | PICO_PC: enable UART0 on DBG1 header (GP0=TX, GP1=RX) for Debug Probe. Auto-remaps PS/2 keyboard to GP10/GP11 to free the pins. |
-| `-DTFT_ST7789=ON` | ST7789 TFT display variant |
 
 #### Multi-target build script
 

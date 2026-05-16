@@ -74,9 +74,6 @@ extern "C" void graphics_set_dither(bool enabled);
 #include <string>
 #include <cstdio>
 
-extern "C" uint8_t TFT_FLAGS;
-extern "C" uint8_t TFT_INVERSION;
-
 void fputs(const char* b, FIL& f);
 
 using namespace std;
@@ -270,8 +267,6 @@ void OSD::drawOSD(bool bottom_info) {
     osdAt(23, 0);
     if (bottom_info) {
         string bottom_line;
-#ifdef VGA_HDMI
-    {
         uint8_t vm = SELECT_VGA ? Config::vga_video_mode : Config::hdmi_video_mode;
         const char* vmname;
         switch (vm) {
@@ -286,22 +281,6 @@ void OSD::drawOSD(bool bottom_info) {
         snprintf(buf2, sizeof(buf2), " Video: %s %s  ",
                  (SELECT_VGA ? "VGA" : "HDMI"), vmname);
         bottom_line = buf2;
-    }
-#else
-#ifdef TV
-        bottom_line = " Video mode: TV RGBI PAL   ";
-#endif
-#ifdef SOFTTV
-        bottom_line = " Video mode: TV-composite  ";
-#endif
-#ifdef TFT
-#ifdef ILI9341
-        bottom_line = TFT_INVERSION ? " Video mode: ILI9341I      " : " Video mode: ILI9341       ";
-#else 
-        bottom_line = TFT_INVERSION ? " Video mode: ST7789I       " : " Video mode: ST7789        ";
-#endif
-#endif
-#endif
         VIDEO::vga.print(bottom_line.append(EMU_VERSION).c_str());
     } else VIDEO::vga.print(OSD_BOTTOM);
     osdHome();
@@ -2123,27 +2102,17 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                             menu_saverect = true;
                             while (1) {
                                 string menu = MENU_I2S[Config::lang];
-#ifdef ZERO2
-                                menu += "PCM5122  \t[5]\n";
-#endif
                                 uint8_t prev = Config::audio_driver;
                                 menu.replace(menu.find("[A",0),2,prev==0 ? "[*" : "[ ");
                                 menu.replace(menu.find("[P",0),2,prev==1 ? "[*" : "[ ");
                                 menu.replace(menu.find("[I",0),2,prev==2 ? "[*" : "[ ");
                                 menu.replace(menu.find("[Y",0),2,prev==3 ? "[*" : "[ ");
                                 { auto pos = menu.find("[H",0); if (pos != string::npos) menu.replace(pos,2,prev==4 ? "[*" : "[ "); }
-#ifdef ZERO2
-                                { auto pos = menu.find("[5",0); if (pos != string::npos) menu.replace(pos,2,prev==5 ? "[*" : "[ "); }
-#endif
                                 uint8_t opt2 = menuRun(menu);
                                 if (opt2) {
                                     // Map menu position to driver value
                                     // (HDMI may be hidden, so opt2-1 doesn't always match)
-                                    static const uint8_t driver_map[] = {0, 1, 2, 3,
-#ifdef ZERO2
-                                        5
-#endif
-                                    };
+                                    static const uint8_t driver_map[] = {0, 1, 2, 3};
                                     static const uint8_t driver_map_size = sizeof(driver_map);
                                     Config::audio_driver = (opt2 <= driver_map_size) ? driver_map[opt2 - 1] : prev;
                                     if (Config::audio_driver != prev) {
@@ -3951,77 +3920,6 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                 if (VIDEO::OSD) OSD::drawStats(); // Redraw stats for 16:9 modes
                 return;
             }
-#if TFT
-            else if (FileUtils::fsMount && opt == 13) { // TFT
-                menu_saverect = true;
-                menu_curopt = 1;
-                while(1) {
-                    menu_level = 1;
-                    uint8_t opt2 = menuRun(MENU_TFT[Config::lang]);
-                    if (opt2 == 1) {
-                        // INVERSION
-                        uint8_t prev_inv = TFT_INVERSION;
-                        TFT_INVERSION = !TFT_INVERSION;
-                        if (confirmReboot(OSD_DLG_APPLYREBOOT)) {
-                            Config::save();
-                            esp_hard_reset();
-                        } else {
-                            TFT_INVERSION = prev_inv;
-                        }
-                    }
-                    else if (opt2 == 2) {
-                        // FLAGS
-                        menu_level = 2;
-                        menu_saverect = true;
-                        while (1) {
-                            uint8_t opt2 = menuRun(MENU_TFT2[Config::lang]);
-                            uint8_t prev_flags = TFT_FLAGS;
-                            if (opt2 == 1) {
-                                TFT_FLAGS = (TFT_FLAGS & MADCTL_BGR_PIXEL_ORDER) ? (TFT_FLAGS & ~MADCTL_BGR_PIXEL_ORDER) : (TFT_FLAGS | MADCTL_BGR_PIXEL_ORDER);
-                                if (confirmReboot(OSD_DLG_APPLYREBOOT)) { Config::save(); esp_hard_reset(); }
-                                else TFT_FLAGS = prev_flags;
-                            }
-                            else if (opt2 == 2) {
-                                TFT_FLAGS = (TFT_FLAGS & MADCTL_MX) ? (TFT_FLAGS & ~MADCTL_MX) : (TFT_FLAGS | MADCTL_MX);
-                                if (confirmReboot(OSD_DLG_APPLYREBOOT)) { Config::save(); esp_hard_reset(); }
-                                else TFT_FLAGS = prev_flags;
-                            }
-                            else if (opt2 == 3) {
-                                TFT_FLAGS = (TFT_FLAGS & MADCTL_MY) ? (TFT_FLAGS & ~MADCTL_MY) : (TFT_FLAGS | MADCTL_MY);
-                                if (confirmReboot(OSD_DLG_APPLYREBOOT)) { Config::save(); esp_hard_reset(); }
-                                else TFT_FLAGS = prev_flags;
-                            }
-                            else if (opt2 == 4) {
-                                TFT_FLAGS = (TFT_FLAGS & MADCTL_MX) ? (TFT_FLAGS & ~MADCTL_MX) : (TFT_FLAGS | MADCTL_MX);
-                                TFT_FLAGS = (TFT_FLAGS & MADCTL_MY) ? (TFT_FLAGS & ~MADCTL_MY) : (TFT_FLAGS | MADCTL_MY);
-                                if (confirmReboot(OSD_DLG_APPLYREBOOT)) { Config::save(); esp_hard_reset(); }
-                                else TFT_FLAGS = prev_flags;
-                            } else {
-                                menu_level = 1;
-                                menu_curopt = 2;
-                                break;
-                            }
-                        }
-                    }
-                    else if (opt2 == 3) {
-                        uint8_t prev_inv = TFT_INVERSION;
-                        uint8_t prev_flags = TFT_FLAGS;
-                        TFT_INVERSION = 0;
-                        TFT_FLAGS = MADCTL_ROW_COLUMN_EXCHANGE | MADCTL_BGR_PIXEL_ORDER;
-                        if (confirmReboot(OSD_DLG_APPLYREBOOT)) {
-                            Config::save();
-                            esp_hard_reset();
-                        } else {
-                            TFT_INVERSION = prev_inv;
-                            TFT_FLAGS = prev_flags;
-                        }
-                    } else {
-                        menu_curopt = 9;
-                        break;
-                    }
-                }
-            }
-#endif
             else break;
           }
         }
@@ -6658,12 +6556,6 @@ void OSD::BoardInfo() {
 #if defined(I2S_DATA_PIO) && defined(I2S_BCK_PIO) && defined(I2S_LCK_PIO)
     pos += snprintf(buf + pos, sizeof(buf) - pos,
         "  I2S D/BCK/LCK : %d/%d/%d\n", I2S_DATA_PIO, I2S_BCK_PIO, I2S_LCK_PIO);
-#endif
-#ifdef PCM5122_I2S_DATA
-    pos += snprintf(buf + pos, sizeof(buf) - pos,
-        "  PCM5122 I2S   : %d/%d/%d\n", PCM5122_I2S_DATA, PCM5122_I2S_BCK, PCM5122_I2S_LCK);
-    pos += snprintf(buf + pos, sizeof(buf) - pos,
-        "  PCM5122 I2C   : %d/%d\n", PCM5122_I2C_SDA, PCM5122_I2C_SCL);
 #endif
 #ifdef LATCH_595_PIN
     pos += snprintf(buf + pos, sizeof(buf) - pos,

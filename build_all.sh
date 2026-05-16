@@ -71,12 +71,6 @@ fi
 # All available targets
 ALL_TARGETS="MURM2_P2 PICO_PC PICO_DV ZERO2"
 
-# Targets that support TFT+ILI9341 display variant
-TFT_TARGETS="MURM2_P2"
-
-# Targets that support TFT+ST7789 display variant
-TFT_ST_TARGETS=""
-
 # Parse arguments: pass target names to build specific ones, or nothing for all
 if [ $# -gt 0 ]; then
     TARGETS="$*"
@@ -88,18 +82,6 @@ fi
 BUILD_PAIRS=()
 for TARGET in $TARGETS; do
     BUILD_PAIRS+=("${TARGET}:VGA_HDMI")
-    for TFT_T in $TFT_TARGETS; do
-        if [ "$TARGET" = "$TFT_T" ]; then
-            BUILD_PAIRS+=("${TARGET}:TFT_ILI9341")
-            break
-        fi
-    done
-    for TFT_ST_T in $TFT_ST_TARGETS; do
-        if [ "$TARGET" = "$TFT_ST_T" ]; then
-            BUILD_PAIRS+=("${TARGET}:TFT_ST7789")
-            break
-        fi
-    done
 done
 
 echo "=== pico-next multi-target build ==="
@@ -187,11 +169,6 @@ build_one() {
             MURM2_P2) target_flags=(-DMURM2=ON -DMURM2_P2=ON) ;;
             *)        target_flags=(-D"${target}"=ON) ;;
         esac
-        if [ "$display" = "TFT_ILI9341" ]; then
-            target_flags+=(-DTFT=ON -DILI9341=ON -DVGA_HDMI=OFF)
-        elif [ "$display" = "TFT_ST7789" ]; then
-            target_flags+=(-DTFT=ON -DST7789=ON -DVGA_HDMI=OFF)
-        fi
 
         local cmake_args=(
             -B "$build_dir" -S "$SCRIPT_DIR"

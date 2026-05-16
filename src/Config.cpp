@@ -30,7 +30,6 @@ bool     Config::AY48 = true;
 uint16_t Config::cpu_mhz = CPU_MHZ;
 uint16_t Config::max_flash_freq = 66;
 uint16_t Config::max_psram_freq = 166;
-uint16_t Config::max_tft_freq = 126;
 #if !PICO_RP2040
 uint8_t  Config::vreq_voltage = VREG_VOLTAGE_1_60;
 #endif
@@ -275,11 +274,6 @@ void Config::loadDiskMounts() {
     fclose2(handle);
 }
 
-#if TFT
-extern "C" uint8_t TFT_FLAGS;
-extern "C" uint8_t TFT_INVERSION;
-#endif
-
 // Parse NVS data from a raw string into vector of lines
 static void nvs_parse_lines(const string& data, vector<string>& sts) {
     string s;
@@ -327,10 +321,6 @@ void Config::load() {
     }
     {
 
-        #if TFT
-        nvs_get_u8("TFT_FLAGS", TFT_FLAGS, sts);
-        nvs_get_u8("TFT_INVERSION", TFT_INVERSION, sts);
-        #endif
         nvs_get_str("arch", arch, sts);
         nvs_get_str("romSet", romSet, sts);
         nvs_get_str("romSet48", romSet48, sts);
@@ -346,9 +336,6 @@ void Config::load() {
         if (max_flash_freq == 0) max_flash_freq = 66;
         nvs_get_u16("max_psram_freq", max_psram_freq, sts);
         if (max_psram_freq == 0) max_psram_freq = 166;
-        nvs_get_u16("max_tft_freq", max_tft_freq, sts);
-        if (max_tft_freq == 0) max_tft_freq = 126;
-        graphics_max_tft_freq_mhz = max_tft_freq;
 #if !PICO_RP2040
         {
             std::string vv;
@@ -511,7 +498,6 @@ void Config::load() {
         else if (v == "i2s") Config::audio_driver = 2;
         else if (v == "ay") Config::audio_driver = 3;
         else if (v == "hdmi") Config::audio_driver = 4;
-        else if (v == "pcm5122") Config::audio_driver = 5;
         nvs_get_str("video_driver", v, sts);
         if (v == "VGA" || v == "vga") video_driver = 1;
         else if (v == "HDMI" || v == "hdmi" || v == "DVI" || v == "dvi") video_driver = 2;
@@ -567,7 +553,6 @@ void Config::save() {
     nvs_set_u16(buf,"cpu_mhz", cpu_mhz);
     nvs_set_u16(buf,"max_flash_freq", max_flash_freq);
     nvs_set_u16(buf,"max_psram_freq", max_psram_freq);
-    nvs_set_u16(buf,"max_tft_freq", max_tft_freq);
 #if !PICO_RP2040
     {
         const char* vv = "1_60";
@@ -588,10 +573,6 @@ void Config::save() {
     }
 #endif
 
-    #if TFT
-    nvs_set_u8(buf,"TFT_FLAGS", TFT_FLAGS);
-    nvs_set_u8(buf,"TFT_INVERSION", TFT_INVERSION);
-    #endif
     nvs_set_str(buf,"arch",arch.c_str());
     nvs_set_str(buf,"romSet",romSet.c_str());
     nvs_set_str(buf,"romSet48",romSet48.c_str());
@@ -689,8 +670,7 @@ void Config::save() {
     nvs_set_u8(buf,"palette", Config::palette);
     nvs_set_str(buf,"audio_driver", Config::audio_driver == 0 ? "auto" :
         (Config::audio_driver == 1) ? "pwm" : (Config::audio_driver == 2) ? "i2s" :
-        (Config::audio_driver == 3) ? "ay" : (Config::audio_driver == 4) ? "hdmi" :
-        (Config::audio_driver == 5) ? "pcm5122" : "auto"
+        (Config::audio_driver == 3) ? "ay" : (Config::audio_driver == 4) ? "hdmi" : "auto"
     );
     nvs_set_str(buf,"video_driver", video_driver == 0 ? "auto" : (video_driver == 1) ? "vga" : "hdmi");
     // Save hotkey bindings

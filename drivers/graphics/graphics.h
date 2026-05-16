@@ -6,18 +6,9 @@ extern "C" {
 #include "stdio.h"
 #include "stdint.h"
 
-#ifdef TFT
-#include "st7789.h"
-#endif
 #ifdef VGA_HDMI
 #include "vga.h"
 #include "hdmi.h"
-#endif
-#ifdef TV
-#include "tv.h"
-#endif
-#ifdef SOFTTV
-#include "tv-software.h"
 #endif
 #include "font6x8.h"
 #include "font8x8.h"
@@ -54,8 +45,6 @@ enum graphics_mode_t {
     TEXTMODE_DEFAULT,
     GRAPHICSMODE_DEFAULT,
 };
-
-extern uint16_t graphics_max_tft_freq_mhz; // max SPI freq for TFT, MHz
 
 void graphics_init();
 

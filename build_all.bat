@@ -62,9 +62,6 @@ if !errorlevel! equ 0 (
 
 :: All available targets
 set "ALL_TARGETS=MURM2_P2 PICO_PC PICO_DV ZERO2"
-set "TFT_TARGETS=MURM2_P2"
-set "TFT_ST_TARGETS="
-set "SOFTTV_TARGETS=MURM2_P2"
 
 if "%POSARGS%"=="" (
     set "TARGETS=%ALL_TARGETS%"
@@ -76,9 +73,6 @@ if "%POSARGS%"=="" (
 set "PAIRS="
 for %%T in (%TARGETS%) do (
     set "PAIRS=!PAIRS! %%T:VGA_HDMI"
-    for %%M in (%TFT_TARGETS%) do ( if "%%T"=="%%M" set "PAIRS=!PAIRS! %%T:TFT_ILI9341" )
-    for %%M in (%TFT_ST_TARGETS%) do ( if "%%T"=="%%M" set "PAIRS=!PAIRS! %%T:TFT_ST7789" )
-    for %%M in (%SOFTTV_TARGETS%) do ( if "%%T"=="%%M" set "PAIRS=!PAIRS! %%T:SOFTTV" )
 )
 
 :: Count pairs
@@ -273,10 +267,6 @@ if "%W_TARGET%"=="MURM2_P2" (
 ) else (
     set "W_FLAGS=-D%W_TARGET%=ON"
 )
-
-if "%W_DISPLAY%"=="TFT_ILI9341" set "W_FLAGS=!W_FLAGS! -DTFT=ON -DILI9341=ON -DVGA_HDMI=OFF"
-if "%W_DISPLAY%"=="TFT_ST7789"  set "W_FLAGS=!W_FLAGS! -DTFT=ON -DST7789=ON -DVGA_HDMI=OFF"
-if "%W_DISPLAY%"=="SOFTTV"      set "W_FLAGS=!W_FLAGS! -DSOFTTV=ON -DVGA_HDMI=OFF"
 
 set "W_ARGS=-B "%W_BUILD_DIR%" -S "%SCRIPT_DIR%" -G "%CMAKE_GENERATOR%" !W_FLAGS! %CCACHE_ARGS% -DCMAKE_BUILD_TYPE=%BUILD_TYPE%"
 if defined CMAKE_MAKE_PROGRAM set "W_ARGS=!W_ARGS! -DCMAKE_MAKE_PROGRAM=!CMAKE_MAKE_PROGRAM!"

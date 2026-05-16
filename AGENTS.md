@@ -31,7 +31,7 @@ Emulates ZX Spectrum 48K, 128K, Pentagon 128/512/1024K with 100% cycle-accurate 
 |--------------------|-----------|------------|--------------------------|
 | Murmulator 2.0     | `MURM2`   | 8          | RP2350A                  |
 | Olimex PICO-PC     | `PICO_PC` | 8          | RP2350A, PWM audio on GP27/GP28 |
-| Pimoroni Pico DV   | `PICO_DV` | 47         | RP2350B, HDMI via DVI on GP6+   |
+| Pimoroni Pico DV   | `PICO_DV` | 47         | RP2350B (Pico Plus 2 / 8MB PSRAM), HDMI via DVI on GP6+. **Primary pico-next dev target.** |
 | Waveshare PiZero 2 | `ZERO2`   | 47         | RP2350B                  |
 
 ## Architecture / Key Source Files

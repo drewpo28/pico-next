@@ -342,14 +342,15 @@ ELSEIF(PICO_PC)
         SDCARD_PIN_SPI0_MOSI=7
         SDCARD_PIN_SPI0_CS=22
 
-        #PSRAM           # not implemented
-        PSRAM_SPINLOCK=1 # not implemented
-        PSRAM_ASYNC=1    # not implemented
-
-        PSRAM_PIN_CS=3   # not implemented
-        PSRAM_PIN_SCK=3  # not implemented
-        PSRAM_PIN_MOSI=3 # not implemented
-        PSRAM_PIN_MISO=3 # not implemented
+        # PSRAM: onboard butter PSRAM at GP8 (RP2350A QMI CS1, set above).
+        # No external SPI PSRAM — dummy PSRAM_PIN_* values are kept only so
+        # drivers/psram/psram_spi.c compiles; init_psram() short-circuits.
+        PSRAM_SPINLOCK=1
+        PSRAM_ASYNC=1
+        PSRAM_PIN_CS=3
+        PSRAM_PIN_SCK=3
+        PSRAM_PIN_MOSI=3
+        PSRAM_PIN_MISO=3
 
         # NES Gamepad
         USE_NESPAD
@@ -419,14 +420,16 @@ ELSEIF(PICO_DV)
         SDCARD_PIO=pio1
         SDCARD_PIO_SM=0
 
-        #PSRAM           # not implemented
-        PSRAM_SPINLOCK=1 # not implemented
-        PSRAM_ASYNC=1    # not implemented
-
-        PSRAM_PIN_CS=3   # not implemented
-        PSRAM_PIN_SCK=3  # not implemented
-        PSRAM_PIN_MOSI=3 # not implemented
-        PSRAM_PIN_MISO=3 # not implemented
+        # PSRAM: onboard butter PSRAM at GP47 (Pimoroni Pico Plus 2 / RP2350B QMI CS1).
+        # No external SPI PSRAM on this target — the dummy PSRAM_PIN_* values
+        # below only exist so drivers/psram/psram_spi.c compiles; init_psram()
+        # short-circuits to size=0 because PSRAM is not defined.
+        PSRAM_SPINLOCK=1
+        PSRAM_ASYNC=1
+        PSRAM_PIN_CS=3
+        PSRAM_PIN_SCK=3
+        PSRAM_PIN_MOSI=3
+        PSRAM_PIN_MISO=3
 
         # NES Gamepad
         NES_GPIO_CLK=8    # UXT1-6

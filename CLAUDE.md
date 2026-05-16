@@ -74,7 +74,9 @@ Notes below are inherited from pico-spec and describe the classic-Spectrum subsy
 | 28 | PWM1/DATA_595 | REASSIGN | Audio PWM left |
 | 29 | CLK_AY_PIN2 | REASSIGN | AY clock out |
 
-### PICO_DV (RP2350, GPIO 0-29 + 47) — FIXED=14, REASSIGNABLE=8, FREE=9
+### PICO_DV (RP2350B, GPIO 0-29 + 47) — FIXED=14, REASSIGNABLE=8, FREE=9
+
+Pimoroni Pico Plus 2 (RP2350B + 8MB PSRAM) plugged into a Pico DV Demo Base is the **primary pico-next dev target**. Butter PSRAM is enabled (`BUTTER_PSRAM_GPIO=47`) and runtime allocation in `assign_ram()` (src/ESPectrum.cpp) lays Spectrum RAM pages onto it after SRAM is filled.
 
 | GPIO | Function | Cat | Notes |
 |------|----------|-----|-------|

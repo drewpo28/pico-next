@@ -30,7 +30,8 @@ This is an emulator of the Sinclair ZX Spectrum compatible computers running on 
 Board supported:
  - "Murmulator 2.0" + Raspberry "Pi Pico 2" or compatible;
  - Waveshare "RP2350-PiZero";
- - Pimoroni "Pico DV Demo Base" + Raspberry "Pi Pico 2" or compatible;
+ - Pimoroni "Pico DV Demo Base" + Pimoroni "Pico Plus 2" (RP2350B, 8 MB PSRAM) — primary pico-next dev target, build as `-DPICO_DV=ON`;
+ - Pimoroni "Pico DV Demo Base" + Raspberry "Pi Pico 2";
  - Olimex "RP2350-PICO-PC" board + Raspberry "Pi Pico 2" or compatible.
 
 Best performance for case Pimoroni "Pico Plus 2" is used.

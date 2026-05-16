@@ -1,6 +1,5 @@
 /*
-    zxnDMA / Z80 DMA emulation for ZX Spectrum Next compatibility
-    Supports both Port #0B (Zilog Z80 DMA) and Port #6B (zxnDMA) modes.
+    zxnDMA emulation for ZX Spectrum Next compatibility (port #6B).
 
     Reference: https://wiki.specnext.dev/DMA
 */
@@ -407,14 +406,12 @@ void Z80DMA::doLoad() {
     // FPGA: zxn mode counter starts at 0, z80 mode counter starts at 0xFFFF
     // zxn: transfers block_length bytes; z80: transfers block_length+1 bytes
     byte_counter = block_length;
-    if (Config::dma_mode == 1) byte_counter++; // z80 DMA always: length+1
     block_end = false;
 }
 
 void Z80DMA::doContinue() {
     // Reset byte counter but keep current working pointers
     byte_counter = block_length;
-    if (Config::dma_mode == 1) byte_counter++;
     block_end = false;
 }
 

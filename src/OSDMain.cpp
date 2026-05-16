@@ -2637,8 +2637,7 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                                 string dma_menu = MENU_DMA[Config::lang];
                                 uint8_t prev = Config::dma_mode;
                                 dma_menu.replace(dma_menu.find("[O",0),2, prev == 0 ? "[*" : "[ ");
-                                dma_menu.replace(dma_menu.find("[B",0),2, prev == 1 ? "[*" : "[ ");
-                                dma_menu.replace(dma_menu.find("[X",0),2, prev == 2 ? "[*" : "[ ");
+                                dma_menu.replace(dma_menu.find("[X",0),2, prev == 1 ? "[*" : "[ ");
                                 uint8_t opt2 = menuRun(dma_menu);
                                 if (opt2) {
                                     Config::dma_mode = opt2 - 1;
@@ -7091,8 +7090,6 @@ void OSD::EmulatorInfo() {
 #if !PICO_RP2040
         // DMA
         if (Config::dma_mode == 1)
-            pos += snprintf(buf + pos, sizeof(buf) - pos, " DMA            : Z80 DMA (#0B)\n");
-        else if (Config::dma_mode == 2)
             pos += snprintf(buf + pos, sizeof(buf) - pos, " DMA            : zxnDMA (#6B)\n");
         else
             pos += snprintf(buf + pos, sizeof(buf) - pos, " DMA            : Off\n");

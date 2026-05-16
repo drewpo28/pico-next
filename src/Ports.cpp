@@ -217,8 +217,8 @@ IRAM_ATTR uint8_t Ports::input(uint16_t address) {
       ioContentionLate(MemESP::ramContended[rambank]);
       return VIDEO::timex_port_ff;
     }
-    // Z80 DMA / zxnDMA port read: listen on both 0x0B and 0x6B
-    if (Config::dma_mode && ((address & 0xFF) == 0x0B || (address & 0xFF) == 0x6B)) {
+    // zxnDMA port read (port 0x6B)
+    if (Config::dma_mode && (address & 0xFF) == 0x6B) {
       ioContentionLate(MemESP::ramContended[rambank]);
       return Z80DMA::readPort();
     }
@@ -480,8 +480,8 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
       Midi::send(data);
       return;
     }
-    // Z80 DMA / zxnDMA port write: listen on both 0x0B and 0x6B
-    if (Config::dma_mode && (a8 == 0x0B || a8 == 0x6B)) {
+    // zxnDMA port write (port 0x6B)
+    if (Config::dma_mode && a8 == 0x6B) {
       Z80DMA::writePort(data);
       ioContentionLate(MemESP::ramContended[rambank]);
       return;

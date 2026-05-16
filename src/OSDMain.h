@@ -113,12 +113,12 @@ public:
     static void WindowDraw();
     static unsigned short menuRun(const string& new_menu);
     static unsigned short simpleMenuRun(const string& new_menu, uint16_t posx, uint16_t posy, uint8_t max_rows, uint8_t max_cols);
-    // F5 slot-picker popup. Interface selects the slot family (Betadisk / MB-02+ / esxDOS).
+    // F5 slot-picker popup. Interface selects the slot family (Betadisk / esxDOS).
     // If `fname` is non-empty, Enter mounts it into the focused slot and keeps the
     // popup open so the user can see the new state and mount into other slots.
     // Returns 0 on Esc (popup was opened as a side-effect of F5 / HK_DISK — the
     // caller does not need to act on the return value for mounting).
-    // F2 toggles Write Protect for Betadisk/MB-02+ (no effect for esxDOS).
+    // F2 toggles Write Protect for Betadisk (no effect for esxDOS).
     // F8/Del ejects the focused slot.
     // All side effects (mount/eject/WP/path) are persisted via Config::save() and
     // survive Esc.

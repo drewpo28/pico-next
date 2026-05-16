@@ -971,8 +971,7 @@ static const char *MENU_HDMI_DITHER[2] = { "HDMI Dither (ULA+)\n", "Tramado HDMI
 static const char *MENU_TIMEX[2] = { "Timex Gfx Mode\n", "Timex Gfx Mode\n"};
 #define MENU_DMA_EN "DMA\n"\
     "OFF            \t[O]\n"\
-    "Port #0B (Z80 DMA)\t[B]\n"\
-    "Port #6B (DATA-GEAR)\t[X]\n"
+    "zxnDMA (port #6B)\t[X]\n"
 #define MENU_DMA_ES MENU_DMA_EN
 static const char *MENU_DMA[2] = { MENU_DMA_EN, MENU_DMA_ES };
 #endif

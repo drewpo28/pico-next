@@ -61,7 +61,7 @@ Best performance for case Pimoroni "Pico Plus 2" is used.
 - Custom palettes support: load user-defined palettes from `/palette.nvs` file on SD card (up to 11 custom palettes, 3x3 RGB color transform matrix).
 - Ula+ support (https://sinclair.wiki.zxnet.co.uk/wiki/ULAplus).
 - Murmuzavr (up to 32 MB) support.
-- Z80 DMA / zxnDMA emulation: Port #0B (MB02+) and Port #6B (DATA-GEAR) modes (RP2350 only).
+- zxnDMA emulation: Port #6B (Spectrum Next / DATA-GEAR compatible) — RP2350 only.
 - Contended memory and contended I/O emulation.
 - AY-3-8912 / TurboSound emulation.
 - MIDI support: external UART output (AY bit-bang, ShamaZX) and built-in software synthesizer (RP2350 only).
@@ -70,9 +70,8 @@ Best performance for case Pimoroni "Pico Plus 2" is used.
 - PS/2 Joystick emulation (Cursor, Sinclair, Kempston and Fuller).
 - Two real joysticks support (Up to 8 button joysticks).
 - Emulation of Betadisk interface with four drives and TRD, SCL, UDI and FDI (read and write) support. Fast and realtime modes. Per-drive Write Protect, inline drive status in the Drives menu, F5 slot-picker popup (F2 toggle WP, F8 eject) when mounting from the file browser.
-- MB-02+ disk interface emulation: WD2797 FDC, Z80-DMA, 512KB SRAM paging, BS-DOS 308, MBD disk images, 4 drives, NMI menu (RP2350 only).
 - esxDOS support (DivMMC, DivIDE, DivSD) — [esxdos.org](https://esxdos.org/index.html).
-- Z-Controller emulation: raw SD card access via ports #57/#77, mutually exclusive with esxDOS and MB-02+ (RP2350 only).
+- Z-Controller emulation: raw SD card access via ports #57/#77, mutually exclusive with esxDOS (RP2350 only).
 - FDD activity LED indicator and mechanical head click/seek sound emulation (optional, toggled via Betadisk menu).
 - Realtime (with OSD) TZX, TAP and PZX file loading.
 - Flashload of TZX/TAP/PZX files (standard loaders only).
@@ -102,7 +101,7 @@ Default hotkey bindings (all hotkeys except F1 and ALT+F1 are reconfigurable via
 - F2 Load (SNA,Z80,P)
 - F3 Load custom snapshot
 - F4 Save custom snapshot
-- F5 Load file (TAP, TZX, PZX, TRD, SCL, UDI, FDI, MBD, SNA, Z80, MMC, HDF, DSK, ZIP)
+- F5 Load file (TAP, TZX, PZX, TRD, SCL, UDI, FDI, SNA, Z80, MMC, HDF, DSK, ZIP)
 - F6 Play/Stop tape
 - F7 Tape Browser
 - F8 CPU / Tape load stats ( [CPU] microsecs per CPU cycle, [IDL] idle microsecs, [FPS] Frames per second, [FND] FPS w/no delay applied )

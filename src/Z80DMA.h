@@ -1,6 +1,5 @@
 /*
-    zxnDMA / Z80 DMA emulation for ZX Spectrum Next compatibility
-    Supports both Port #0B (Zilog Z80 DMA) and Port #6B (zxnDMA) modes.
+    zxnDMA emulation for ZX Spectrum Next compatibility (port #6B).
 
     Reference: https://wiki.specnext.dev/DMA
 */

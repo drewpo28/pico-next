@@ -638,10 +638,7 @@ static bool persistLoad(uint8_t slotnumber)
 
 string getMenuPrefix() {
     if (MEM_PG_CNT <= 64) return "ESPectrum ";
-    if (MEM_PG_CNT <= 256) return "Murmuzavr 4M/";
-    if (MEM_PG_CNT <= 512) return "Murmuzavr 8M/";
-    if (MEM_PG_CNT <= 1024) return "Murmuzavr 16M/";
-    return "Murmuzavr 32M/";
+    return "pico-next ";
 }
 
 // Forward declarations for hotkey helpers (defined later in file)
@@ -2758,85 +2755,6 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                             // No handler yet — just keep current machine.
                             menu_curopt = arch_num;
                             menu_saverect = false;
-                        } else if (ext_ram && arch_num == 4) { // Murmuzavr
-                            menu_level = 2;
-                            menu_curopt = 1;
-                            menu_saverect = true;
-                            while (1) {
-                                string opt_menu = (FileUtils::fsMount ? MENU_MURMUZAVR : MENU_MURMUZAVR_NONE)[Config::lang];
-                                uint32_t new_opt = MEM_PG_CNT, prev_opt = MEM_PG_CNT;
-                                if (!FileUtils::fsMount) {
-                                    opt_menu.replace(opt_menu.find("[N",0),2,"[*");
-#if PICO_RP2350
-                                } else if (prev_opt <= 64) {
-                                    opt_menu.replace(opt_menu.find("[N",0),2,"[*");
-                                    opt_menu.replace(opt_menu.find("[4",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[8",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[1",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[3",0),2,"[ ");
-                                } else if (prev_opt <= 256) {
-                                    opt_menu.replace(opt_menu.find("[N",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[4",0),2,"[*");
-                                    opt_menu.replace(opt_menu.find("[8",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[1",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[3",0),2,"[ ");
-                                } else if (prev_opt <= 512) {
-                                    opt_menu.replace(opt_menu.find("[N",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[4",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[8",0),2,"[*");
-                                    opt_menu.replace(opt_menu.find("[1",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[3",0),2,"[ ");
-                                } else if (prev_opt <= 1024) {
-                                    opt_menu.replace(opt_menu.find("[N",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[4",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[8",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[1",0),2,"[*");
-                                    opt_menu.replace(opt_menu.find("[3",0),2,"[ ");
-                                } else {
-                                    opt_menu.replace(opt_menu.find("[N",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[4",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[8",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[1",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[3",0),2,"[*");
-                                }
-#else
-                                } else if (prev_opt <= 64) {
-                                    opt_menu.replace(opt_menu.find("[N",0),2,"[*");
-                                    opt_menu.replace(opt_menu.find("[4",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[8",0),2,"[ ");
-                                } else if (prev_opt <= 256) {
-                                    opt_menu.replace(opt_menu.find("[N",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[4",0),2,"[*");
-                                    opt_menu.replace(opt_menu.find("[8",0),2,"[ ");
-                                } else if (prev_opt <= 512) {
-                                    opt_menu.replace(opt_menu.find("[N",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[4",0),2,"[ ");
-                                    opt_menu.replace(opt_menu.find("[8",0),2,"[*");
-                                }
-#endif
-                                uint8_t opt2 = menuRun(opt_menu);
-                                if (opt2) {
-                                    if (opt2 == 1) new_opt = 64;
-                                    else if (opt2 == 2) new_opt = 256;
-                                    else if (opt2 == 3) new_opt = 512;
-                                    else if (opt2 == 4) new_opt = 1024;
-                                    else if (opt2 == 5) new_opt = 2048;
-                                    if (prev_opt != new_opt) {
-                                        if (confirmReboot(OSD_DLG_APPLYREBOOT)) {
-                                            MEM_PG_CNT = new_opt;
-                                            Config::save();
-                                            OSD::esp_hard_reset();
-                                            return;
-                                        }
-                                    }
-                                    menu_curopt = opt2;
-                                    menu_saverect = false;
-                                } else {
-                                    menu_curopt = 1;
-                                    menu_level = 2;
-                                    break;
-                                }
-                            }
                         }
 
                         if (opt2) {
@@ -3417,7 +3335,7 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                                     menu_curopt = 1;
                                     menu_saverect = true;
                                     while (1) {
-                                        string menu = MENU_ALF_JOY[Config::lang];
+                                        string menu = MENU_JOY2_SOURCE[Config::lang];
                                         uint8_t prev = Config::secondJoy;
                                         if (prev == 3) {
                                             menu.replace(menu.find("[1",0),2,"[ ");

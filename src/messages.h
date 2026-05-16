@@ -1033,11 +1033,11 @@ static const char *MENU_COVOX[2] = { MENU_COVOX_EN, MENU_COVOX_EN };
 	// \"HDMI     \t[H]\n"
 static const char *MENU_I2S[2] = { MENU_I2S_EN, MENU_I2S_ES };
 
-#define MENU_ALF_JOY_EN "Source\n"\
+#define MENU_JOY2_SOURCE_EN "Source\n"\
     "DPAD #1\t[1]\n"\
     "DPAD #2\t[2]\n"\
     "NUMPAD \t[N]\n"
-static const char *MENU_ALF_JOY[2] = { MENU_ALF_JOY_EN, MENU_ALF_JOY_EN };
+static const char *MENU_JOY2_SOURCE[2] = { MENU_JOY2_SOURCE_EN, MENU_JOY2_SOURCE_EN };
 
 #define MENU_K_JOY_EN "PORT #\n"\
     "1Fh (31)\t[1]\n"\
@@ -1070,8 +1070,7 @@ static const char *MENU_ISSUE2[2] = { "48K Issue 2\n", "48K Issue 2\n"};
 #define MENU_ARCHS \
     "Spectrum 48K\t>\n"\
     "Spectrum 128K\t>\n"\
-	"Spectrum Next\t>\n"\
-	"Murmuzavr mode\t>\n"
+	"Spectrum Next\t>\n"
 static const char *MENU_ARCH[2] = { MENU_ARCH_EN MENU_ARCHS, MENU_ARCH_ES MENU_ARCHS };
 
 #if PICO_RP2040
@@ -1104,26 +1103,6 @@ static const char *MENU_ARCH_NO_SD[2] = { MENU_ARCH_EN MENU_ARCHS_NO_SD, MENU_AR
 
 static const char *MENU_ROMS48[2] = { MENU_ROMS48_EN, MENU_ROMS48_ES };
 static const char *MENU_ROMS128[2] = { MENU_ROMS128_EN, MENU_ROMS128_ES };
-
-#if PICO_RP2350
-#define MENU_MURMUZAVR_EN "Murmuzavr mode\n"\
-	"None\t[N]\n"\
-	" 4 MB\t[4]\n"\
-	" 8 MB\t[8]\n"\
-	"16 MB\t[1]\n"\
-	"32 MB\t[3]\n"
-#else
-#define MENU_MURMUZAVR_EN "Murmuzavr mode\n"\
-	"None\t[N]\n"\
-	"4 MB\t[4]\n"\
-	"8 MB\t[8]\n"
-#endif
-static const char *MENU_MURMUZAVR[2] = { MENU_MURMUZAVR_EN, MENU_MURMUZAVR_EN };
-
-#define MENU_MURMUZAVR_NONE_EN "Murmuzavr mode\n"\
-	"None\t[N]\n"
-static const char *MENU_MURMUZAVR_NONE[2] = { MENU_MURMUZAVR_NONE_EN, MENU_MURMUZAVR_NONE_EN };
-
 
 #define MENU_ARCHS_PREF \
     "Spectrum 48K\t[4]\n"\

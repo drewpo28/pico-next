@@ -175,13 +175,11 @@ public:
 
     static uint8_t romInUse;
 
-#if !PICO_RP2040
     static uint8_t* page0_lo;      // 0x0000-0x1FFF when DivMMC mapped
     static uint8_t* page0_hi;      // 0x2000-0x3FFF when DivMMC mapped
     static bool divmmc_mapped;     // DivMMC memory currently visible at page 0
     static bool* divmmc_hi_dirty;  // swap mode: points to slot_dirty[] for page0_hi slot
     static bool* divmmc_lo_dirty;  // swap mode: points to slot_dirty[] for page0_lo slot
-#endif
 
     static uint8_t readbyte(uint16_t addr);
     static uint16_t readword(uint16_t addr);
@@ -200,11 +198,9 @@ inline uint8_t MemESP::readbyte(uint16_t addr) {
     if (Config::numMemReadBP > 0 && Config::hasBreakPoint(addr, Config::BP_MEM_READ))
         CPU::portBasedBP = true;
     uint8_t page = addr >> 14;
-#if !PICO_RP2040
     if (page == 0 && divmmc_mapped) {
         return (addr < 0x2000) ? page0_lo[addr] : page0_hi[addr & 0x1FFF];
     }
-#endif
     return ramCurrent[page][addr & 0x3fff];
 }
 
@@ -217,7 +213,6 @@ inline void MemESP::writebyte(uint16_t addr, uint8_t data)
     if (Config::numMemWriteBP > 0 && Config::hasBreakPoint(addr, Config::BP_MEM_WRITE))
         CPU::portBasedBP = true;
     uint8_t page = addr >> 14;
-#if !PICO_RP2040
     if (page == 0 && divmmc_mapped) {
         if (addr < 0x2000) {
             // 0x0000-0x1FFF: writable only when MAPRAM (RAM bank)
@@ -233,7 +228,6 @@ inline void MemESP::writebyte(uint16_t addr, uint8_t data)
         }
         return;
     }
-#endif
     uint8_t* p = ramCurrent[page];
     if (p < (uint8_t*)0x11000000) return;
     p[addr & 0x3fff] = data;

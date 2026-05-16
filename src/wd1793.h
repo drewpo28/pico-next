@@ -154,14 +154,12 @@ typedef struct
     bool IsSCLFile;
     int sclDataOffset;
     int t0s1_info;
-#if !PICO_RP2040
     bool IsUDIFile;
     uint32_t udiTrackOffsets[168]; // file offsets for each track (max 84 cyl × 2 sides)
     uint16_t udiTrackLengths[168]; // TLEN for each track
     bool IsFDIFile;
     uint32_t fdiTrackHdrOffsets[168]; // file offsets for each track header
     uint32_t fdiDataOffset;           // file offset of data block
-#endif
 } rvmwdDisk;
 
 #define kRVMWD177XCLK 0x1  // 0- 1 mhz, 1- 2mhz
@@ -305,7 +303,6 @@ typedef struct
     uint8_t led;
     uint8_t fdd_clicks;  // Pending step clicks count
 
-#if !PICO_RP2040
     uint8_t diskTrackBuf[12800];  // MFM track buffer for UDI/FDI
     uint16_t diskTrackLen;        // length of current track
     int diskLoadedCyl;            // loaded cylinder (-1 = none)
@@ -318,7 +315,6 @@ typedef struct
     int      fdiSectorCount;       // sector count on current track
     uint32_t fdiTstates;           // intra-command byte offset (for find_marker progression)
     bool     fdiDataCrcError;      // matched sector has CRC error
-#endif
 
 } rvmWD1793;
 
@@ -332,10 +328,8 @@ uint8_t rvmwdDiskStep(rvmWD1793 *wd, uint32_t control);
 void wdDiskEject(rvmWD1793 *wd, unsigned char UnitNum);
 void SCLtoTRD(rvmwdDisk *d, unsigned char *track0);
 bool rvmWD1793CreateEmptyTRD(const char *path);
-#if !PICO_RP2040
 void udiLoadTrack(rvmWD1793 *wd, uint32_t cyl, uint8_t side);
 void fdiLoadTrack(rvmWD1793 *wd, uint32_t cyl, uint8_t side);
-#endif
 
 BYTE* load_file_into_ram(FIL* fp, UINT* filesize_out);
 

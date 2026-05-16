@@ -44,9 +44,7 @@ visit https://zxespectrum.speccy.org/contacto
 #include "psram_spi.h"
 #include "Debug.h"
 #include "Z80DMA.h"
-#if !PICO_RP2040
 #include "DivMMC.h"
-#endif
 
 // Place hot CPU functions in SRAM instead of XIP flash
 #undef IRAM_ATTR
@@ -152,9 +150,7 @@ IRAM_ATTR void CPU::loop() {
     }
     while (tstates < IntEnd) {
         Z80::execute();
-#if !PICO_RP2040
         if (Config::dma_mode) Z80DMA::handleDMA();
-#endif
         BREAKPOINTS
     }
     BREAKPOINTS
@@ -169,9 +165,7 @@ IRAM_ATTR void CPU::loop() {
     BREAKPOINTS
     while (tstates < statesInFrame) {
         Z80::execute();
-#if !PICO_RP2040
         if (Config::dma_mode) Z80DMA::handleDMA();
-#endif
         BREAKPOINTS
     }
     VIDEO::EndFrame();
@@ -252,7 +246,6 @@ IRAM_ATTR uint8_t Z80Ops::fetchOpcode() {
 #endif
     uint8_t pg = pc >> 14;
     VIDEO::Draw_Opcode(MemESP::ramContended[pg]);
-#if !PICO_RP2040
     if (DivMMC::enabled) {
         DivMMC::preOpcFetch(pc);
         pg = pc >> 14; // re-read in case instant map changed it
@@ -269,7 +262,6 @@ IRAM_ATTR uint8_t Z80Ops::fetchOpcode() {
     if (pg == 0 && MemESP::divmmc_mapped) {
         return (pc < 0x2000) ? MemESP::page0_lo[pc] : MemESP::page0_hi[pc & 0x1FFF];
     }
-#endif
     return MemESP::ramCurrent[pg][pc & 0x3fff];
 }
 

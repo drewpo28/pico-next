@@ -1,6 +1,5 @@
 #include "pico.h"
 
-#if !PICO_RP2040
 
 #include <stdio.h>
 #include <string.h>
@@ -75,11 +74,7 @@ struct ZipEntry {
     uint16_t compression;
 };
 
-#if PICO_RP2040
-#define ZIP_MAX_ENTRIES 8
-#else
 #define ZIP_MAX_ENTRIES 16
-#endif
 
 string ZipExtract::extract(const string& zipPath, uint8_t fileType) {
     FIL& zipFile = s_zipFile;
@@ -491,4 +486,3 @@ void ZipExtract::cleanup() {
     }
 }
 
-#endif // !PICO_RP2040

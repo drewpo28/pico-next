@@ -61,9 +61,7 @@ visit https://zxespectrum.speccy.org/contacto
 
 #include "PinSerialData_595.h"
 #include "Debug.h"
-#if !PICO_RP2040
 #include "DivMMC.h"
-#endif
 #include "Z80DMA.h"
 
 using namespace std;
@@ -633,26 +631,9 @@ void ESPectrum::setup() {
     MemESP::ram = new mem_desc_t[MEM_PG_CNT + 2];
     memcpy(MemESP::ram, temp, sizeof(mem_desc_t) * 8);
     Debug::log("setup: after memcpy: ram5=%p ram7=%p", MemESP::ram[5].direct(), MemESP::ram[7].direct());
-#if PICO_RP2040
-    // RP2040: page 0 goes to external backing to save heap for framebuffer.
-    // Actual data location at access time is chosen by psram_size() check in
-    // mem_desc_t ops, so label the page with its real backing for honest stats.
-    if (psram_size() >= MEM_PG_SZ) {
-        MemESP::ram[0].assign_vram(0, mem_type_t::PSRAM_SPI);
-        ++psram_pages;
-    } else {
-        MemESP::ram[0].assign_vram(0, mem_type_t::SWAP);
-        ++swap_pages;
-    }
-    MemESP::ram[1].assign_ram(new unsigned char[MEM_PG_SZ], 1, false);
-    MemESP::ram[2].assign_ram(new unsigned char[MEM_PG_SZ], 2, false);
-    MemESP::ram[3].assign_ram(new unsigned char[MEM_PG_SZ], 3, false);
-    ram_pages += 3;
-#else
     // RP2350: pages 0-3 are pre-bound to static `pages0123` SRAM buffer
     // (MemESP.cpp). Skip assign_ram so we don't overwrite the static buffer.
     ram_pages += 4;
-#endif
     // pages 4, 5, 6, 7 are now all in static SRAM buffers (pages46/pages57)
     // for guaranteed POINTER backing — see MemESP.cpp temp[] init.
     // Pages 4,6 historically counted in ram_pages via assign_ram; keep that
@@ -711,10 +692,8 @@ void ESPectrum::setup() {
 
   ///    if (Config::slog_on) showMemInfo("RAM Initialized");
 
-#if !PICO_RP2040
   // Always init DivMMC (load ROM) so it's ready if user enables from OSD later
   DivMMC::init();
-#endif
 
   //=======================================================================================
   // VIDEO
@@ -752,9 +731,7 @@ void ESPectrum::setup() {
   //=======================================================================================
   // Set samples per frame and AY_emu flag depending on arch
     AY_emu = Config::AY48;
-#if !PICO_RP2040
     if (Config::dma_mode) Z80DMA::reset();
-#endif
 
   if (Config::arch == "48K") {
     samplesPerFrame = ESP_AUDIO_SAMPLES_48;
@@ -915,9 +892,7 @@ void ESPectrum::reset(uint8_t romInUse) {
   lastCovoxVal = lastaudioBit = 0;
 
   AY_emu = Config::AY48;
-#if !PICO_RP2040
     if (Config::dma_mode) Z80DMA::reset();
-#endif
 
   // Set samples per frame and AY_emu flag depending on arch
   if (Config::arch == "48K") {
@@ -1609,20 +1584,14 @@ void ESPectrum::loop() {
       }
     }
     // Flashing flag change (disabled when ULA+ palette is active)
-#if !PICO_RP2040
     if (!(VIDEO::flash_ctr++ & 0x0f) && !VIDEO::ulaplus_enabled)
-#else
-    if (!(VIDEO::flash_ctr++ & 0x0f))
-#endif
       VIDEO::flashing ^= 0x80;
 
     // Draw fdd led indicator in top-right corner.
     // TR-DOS (Beta-128) is available on Spectrum 128K — show LED whenever the
     // 128K hardware is active and tape isn't loading.
     bool hasFdd = Z80Ops::is128 && Tape::tapeStatus != TAPE_LOADING
-#if !PICO_RP2040
         && !DivMMC::enabled
-#endif
         ;
     if (hasFdd && Config::trdosSoundLed) {
         if (ESPectrum::fdd.led) {

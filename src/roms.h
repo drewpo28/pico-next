@@ -44,8 +44,6 @@ visit https://zxespectrum.speccy.org/contacto
 extern "C" unsigned char gb_rom_4_trdos_505d[];
 extern "C" unsigned char gb_rom_4_trdos_503[];
 extern "C" unsigned char gb_rom_4_trdos_504tm[];
-#if !PICO_RP2040
 extern "C" unsigned char gb_rom_esxdos[];
 extern "C" unsigned char gb_rom_esxide[];
-#endif
 #endif

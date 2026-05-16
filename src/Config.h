@@ -78,16 +78,12 @@ public:
     const static bool     aspect_16_9; /// TODO:
     static uint8_t  lang;
     static bool     AY48;
-#if !PICO_RP2040
     static bool     timex_video;  // Timex SCLD video modes (port 0xFF)
     static uint8_t  dma_mode;     // 0=Off, 1=zxnDMA (port #6B)
-#endif
-    static uint16_t cpu_mhz;   // 252, 378 (RP2040/RP2350), 504 (RP2350 only)
+    static uint16_t cpu_mhz;   // 252, 378, 504 (RP2350)
     static uint16_t max_flash_freq; // MHz, default 66
     static uint16_t max_psram_freq; // MHz, default 166
-#if !PICO_RP2040
     static uint8_t  vreq_voltage;  // vreg_voltage_t enum value, default VREG_VOLTAGE_1_60
-#endif
     static bool     Issue2;
     static bool     flashload;    
     static bool     tape_player;
@@ -190,12 +186,10 @@ public:
     static bool trdosSoundLed;
     static uint8_t trdosBios; // 0=5.03, 1=5.04TM, 2=5.05D
     static bool driveWP[4];   // TR-DOS per-slot write protect (Drive A..D)
-#if !PICO_RP2040
     static uint8_t esxdos;   // 0=OFF 1=DivMMC 2=DivIDE 3=DivSD
     // Unified hd0/hd1 image slots — [0]=hd0, [1]=hd1.
     // DivMMC uses hd0 only; DivIDE uses both.
     static string esxdos_hdf_image[2];
-#endif
     
     static signed char aud_volume;
 
@@ -214,10 +208,8 @@ public:
     static bool v_sync_enabled;
     static bool gigascreen_enabled;
     static uint8_t gigascreen_onoff; // 0=Off, 1=On, 2=Auto
-#if !PICO_RP2040
     static bool ulaplus;
     static bool hdmi_dither;
-#endif
     // Palette: 0=Default, 1=Grayscale
     static uint8_t palette;
     static uint8_t audio_driver;

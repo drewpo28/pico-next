@@ -33,10 +33,8 @@ extern "C" {
 #define TEXTMODE_ROWS 30
 
 // HDMI audio support (RP2350 only)
-#if !PICO_RP2040
 void hdmi_audio_init(void);
 void hdmi_audio_write_sample(int16_t left, int16_t right);
-#endif
 
 // Hot video mode reinit (reuses existing PIO/DMA resources)
 void hdmi_reinit(void);

@@ -958,7 +958,6 @@ void __attribute__((naked, noreturn)) __printflike(1, 0) dummy_panic(__unused co
         printf(fmt);
 }
 
-#ifndef PICO_RP2040
 void __not_in_flash() flash_timings(int mhz) {
         const int max_flash_freq = Config::max_flash_freq * MHZ;
         const int clock_hz = mhz * MHZ;
@@ -974,7 +973,6 @@ void __not_in_flash() flash_timings(int mhz) {
                             rxdelay << QMI_M0_TIMING_RXDELAY_LSB |
                             divisor << QMI_M0_TIMING_CLKDIV_LSB;
 }
-#endif
 
 static void __not_in_flash_func(flash_info)() {
     if (rx[0] == 0) {
@@ -1037,14 +1035,6 @@ extern "C" int testPins(uint32_t pin0, uint32_t pin1);
 
 int main() {
     flash_info();
-#ifdef PICO_RP2040
-    vreg_set_voltage(VREG_VOLTAGE_MAX); // 1.30V — max for RP2040
-    sleep_ms(10);
-    if (!set_sys_clock_khz(CPU_MHZ * KHZ, false)) {
-        set_sys_clock_khz(252 * KHZ, true); // fallback to 252MHz
-    }
-
-#else
     #if 0
         vreg_set_voltage(VREG_VOLTAGE_1_10); // Set voltage  //
         delay(100);
@@ -1060,7 +1050,6 @@ int main() {
             set_sys_clock_khz(CPU_MHZ * KHZ, 1); // fallback to failsafe clocks
         }
     #endif
-#endif
 
 #if defined(PICO_DEFAULT_UART_TX_PIN) && PICO_DEFAULT_UART_TX_PIN >= 0
     // UART is configured (PICO_DEFAULT_UART can be 0 = UART0, so use TX pin as gate)
@@ -1169,11 +1158,9 @@ int main() {
 
     // Apply saved CPU frequency and flash/PSRAM timing from Config
     {
-#if !PICO_RP2040
         // Apply saved vreg voltage (vreg_disable_voltage_limit already called at boot)
         vreg_set_voltage((enum vreg_voltage)Config::vreq_voltage);
         sleep_ms(10);
-#endif
         uint16_t running_mhz = clock_get_hz(clk_sys) / 1000000;
         if (Config::cpu_mhz != running_mhz) {
             if (try_set_sys_clock_khz(Config::cpu_mhz * KHZ)) {
@@ -1190,9 +1177,7 @@ int main() {
             }
         }
         // Always re-apply flash/PSRAM timing with Config values
-#ifndef PICO_RP2040
         flash_timings(Config::cpu_mhz);
-#endif
 #if PICO_RP2350 && defined(BUTTER_PSRAM_GPIO)
         psram_retiming();
 #endif

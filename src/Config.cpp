@@ -30,9 +30,7 @@ bool     Config::AY48 = true;
 uint16_t Config::cpu_mhz = CPU_MHZ;
 uint16_t Config::max_flash_freq = 66;
 uint16_t Config::max_psram_freq = 166;
-#if !PICO_RP2040
 uint8_t  Config::vreq_voltage = VREG_VOLTAGE_1_60;
-#endif
 bool     Config::Issue2 = true;
 bool     Config::flashload = true;
 bool     Config::tape_player = false; // Tape player mode
@@ -66,11 +64,7 @@ uint16_t Config::joydef[12] = {
 
 uint8_t  Config::AluTiming = 0;
 uint8_t  Config::ayConfig = 0;
-#if !defined(PICO_RP2040)
 uint8_t  Config::turbosound = 3; // BOTH
-#else
-uint8_t  Config::turbosound = 0; // OFF
-#endif
 uint8_t  Config::covox = 0; // NONE
 uint8_t  Config::joy2cursor = true;
 uint8_t  Config::secondJoy = 2; // NPAD#2
@@ -81,10 +75,8 @@ bool     Config::trdosFastMode = false;
 bool     Config::trdosSoundLed = false;
 uint8_t  Config::trdosBios = 2; // Default: 5.05D
 bool     Config::driveWP[4] = { true, true, true, true };
-#if !PICO_RP2040
 uint8_t  Config::esxdos = 0;
 string   Config::esxdos_hdf_image[2] = {"", ""};
-#endif
 
 uint8_t Config::scanlines = 0;
 uint8_t Config::render = 0;
@@ -98,12 +90,10 @@ uint8_t  Config::vga_video_mode = Config::VM_640x480_60;
 bool     Config::v_sync_enabled = false;
 bool     Config::gigascreen_enabled = false;
 uint8_t  Config::gigascreen_onoff = 0;
-#if !PICO_RP2040
 bool     Config::ulaplus = false;
 bool     Config::hdmi_dither = false;
 bool     Config::timex_video = false;
 uint8_t  Config::dma_mode = 0;
-#endif
 uint8_t  Config::palette = 0;
 uint8_t  Config::audio_driver = 0;
 extern "C" uint8_t  video_driver = 0;
@@ -336,7 +326,6 @@ void Config::load() {
         if (max_flash_freq == 0) max_flash_freq = 66;
         nvs_get_u16("max_psram_freq", max_psram_freq, sts);
         if (max_psram_freq == 0) max_psram_freq = 166;
-#if !PICO_RP2040
         {
             std::string vv;
             nvs_get_str("vreq_voltage", vv, sts);
@@ -352,7 +341,6 @@ void Config::load() {
             else if (vv == "1_70") vreq_voltage = VREG_VOLTAGE_1_70;
             else if (vv == "1_80") vreq_voltage = VREG_VOLTAGE_1_80;
         }
-#endif
         nvs_get_b("Issue2", Issue2, sts);
         nvs_get_b("flashload", flashload, sts);
         nvs_get_b("rightSpace", rightSpace, sts);
@@ -420,11 +408,7 @@ void Config::load() {
         nvs_get_u8("ayConfig", Config::ayConfig, sts);
         nvs_get_u8("turbosound", Config::turbosound, sts);
         nvs_get_u8("covox", Config::covox, sts);
-#if !defined(PICO_RP2040)
         nvs_get_u8("throtling2", Config::throtling, sts);
-#else
-        nvs_get_u8("throtling1", Config::throtling, sts);
-#endif
         nvs_get_b("CursorAsJoy", CursorAsJoy, sts);
         nvs_get_b("trdosFastMode", trdosFastMode, sts);
         nvs_get_b("trdosSoundLed", trdosSoundLed, sts);
@@ -433,13 +417,11 @@ void Config::load() {
             char k[12]; snprintf(k, sizeof(k), "drive%d.wp", i);
             nvs_get_b(k, driveWP[i], sts);
         }
-#if !PICO_RP2040
         nvs_get_u8("esxdos", esxdos, sts);
         // Migrate old bool key
         { bool old_divmmc = false; nvs_get_b("divmmc", old_divmmc, sts); if (old_divmmc && esxdos == 0) esxdos = 1; }
         nvs_get_str("esxdos_hdf", esxdos_hdf_image[0], sts);
         nvs_get_str("esxdos_hd1", esxdos_hdf_image[1], sts);
-#endif
         nvs_get_str("SNA_Path", FileUtils::SNA_Path, sts);
         nvs_get_str("TAP_Path", FileUtils::TAP_Path, sts);
         nvs_get_str("DSK_Path", FileUtils::DSK_Path, sts);
@@ -480,17 +462,10 @@ void Config::load() {
         nvs_get_b("gigascreen_enabled", gigascreen_enabled, sts);
         nvs_get_u8("gigascreen_onoff", gigascreen_onoff, sts);
         #endif
-        #if PICO_RP2040
-        // RP2040 can't handle 720x modes — not enough RAM for framebuffer
-        if (hdmi_video_mode >= VM_720x480_60) hdmi_video_mode = VM_640x480_60;
-        if (vga_video_mode >= VM_720x480_60) vga_video_mode = VM_640x480_60;
-        #endif
-        #if !PICO_RP2040
         nvs_get_b("ulaplus", ulaplus, sts);
         nvs_get_b("hdmi_dither", hdmi_dither, sts);
         nvs_get_b("timex_video", timex_video, sts);
         nvs_get_u8("dma_mode", dma_mode, sts);
-        #endif
         nvs_get_u8("palette", palette, sts);
         std::string v;
         nvs_get_str("audio_driver", v, sts);
@@ -515,9 +490,6 @@ void Config::load() {
         int mem_pg_cnt = 0;
         nvs_get_i("MEM_PG_CNT", mem_pg_cnt, sts);
         if (mem_pg_cnt < 8 || mem_pg_cnt > 2048) MEM_PG_CNT = 64;
-        #if PICO_RP2040
-        else if (mem_pg_cnt > 512) MEM_PG_CNT = 512;
-        #endif
         else MEM_PG_CNT = mem_pg_cnt;
     }
     loaded = true;
@@ -553,7 +525,6 @@ void Config::save() {
     nvs_set_u16(buf,"cpu_mhz", cpu_mhz);
     nvs_set_u16(buf,"max_flash_freq", max_flash_freq);
     nvs_set_u16(buf,"max_psram_freq", max_psram_freq);
-#if !PICO_RP2040
     {
         const char* vv = "1_60";
         switch (vreq_voltage) {
@@ -571,7 +542,6 @@ void Config::save() {
         }
         nvs_set_str(buf, "vreq_voltage", vv);
     }
-#endif
 
     nvs_set_str(buf,"arch",arch.c_str());
     nvs_set_str(buf,"romSet",romSet.c_str());
@@ -615,11 +585,7 @@ void Config::save() {
     nvs_set_u8(buf,"joy2cursor",Config::joy2cursor);
     nvs_set_u8(buf,"secondJoy",Config::secondJoy);
     nvs_set_u8(buf,"kempstonPort",Config::kempstonPort);
-#if !defined(PICO_RP2040)
     nvs_set_u8(buf,"throtling2",Config::throtling);
-#else
-    nvs_set_u8(buf,"throtling1",Config::throtling);
-#endif
     nvs_set_str(buf,"CursorAsJoy", CursorAsJoy ? "true" : "false");
     nvs_set_str(buf,"trdosFastMode", trdosFastMode ? "true" : "false");
     nvs_set_str(buf,"trdosSoundLed", trdosSoundLed ? "true" : "false");
@@ -628,11 +594,9 @@ void Config::save() {
         char k[12]; snprintf(k, sizeof(k), "drive%d.wp", i);
         nvs_set_str(buf, k, driveWP[i] ? "true" : "false");
     }
-#if !PICO_RP2040
     nvs_set_u8(buf,"esxdos", esxdos);
     nvs_set_str(buf,"esxdos_hdf", esxdos_hdf_image[0].c_str());
     nvs_set_str(buf,"esxdos_hd1", esxdos_hdf_image[1].c_str());
-#endif
     nvs_set_str(buf,"SNA_Path",FileUtils::SNA_Path.c_str());
     nvs_set_str(buf,"TAP_Path",FileUtils::TAP_Path.c_str());
     nvs_set_str(buf,"DSK_Path",FileUtils::DSK_Path.c_str());
@@ -661,12 +625,10 @@ void Config::save() {
     nvs_set_str(buf,"v_sync_enabled", Config::v_sync_enabled ? "true" : "false");
     nvs_set_str(buf,"gigascreen_enabled", Config::gigascreen_enabled ? "true" : "false");
     nvs_set_u8(buf,"gigascreen_onoff", Config::gigascreen_onoff);
-    #if !PICO_RP2040
     nvs_set_str(buf,"ulaplus", Config::ulaplus ? "true" : "false");
     nvs_set_str(buf,"hdmi_dither", Config::hdmi_dither ? "true" : "false");
     nvs_set_str(buf,"timex_video", Config::timex_video ? "true" : "false");
     nvs_set_u8(buf,"dma_mode",Config::dma_mode);
-    #endif
     nvs_set_u8(buf,"palette", Config::palette);
     nvs_set_str(buf,"audio_driver", Config::audio_driver == 0 ? "auto" :
         (Config::audio_driver == 1) ? "pwm" : (Config::audio_driver == 2) ? "i2s" :

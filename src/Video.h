@@ -106,9 +106,7 @@ public:
   void restore_ram(void* p, size_t sz);
 };
 
-#if !PICO_RP2040
 void initGigascreenBlendLUT();
-#endif
 
 class VIDEO
 {
@@ -144,9 +142,7 @@ public:
   static void MainScreen_Snow_Opcode(bool contended);
   
   // static void DrawBorderFast();
-#if !PICO_RP2040
   static void InitPrevBuffer();
-#endif
 
   static void Border_Blank();
 
@@ -239,14 +235,11 @@ public:
   static uint8_t gigascreen_auto_countdown;
 
   // Timex SCLD video modes
-#if !PICO_RP2040
   static uint8_t timex_port_ff;   // bits 0-5 of port 0xFF
   static uint8_t timex_mode;      // cached (timex_port_ff & 7)
   static uint8_t timex_hires_ink; // mode 6: ink palette index (0-7)
-#endif
 
   // ULA+
-#if !PICO_RP2040
   static bool ulaplus_enabled;
   static uint8_t ulaplus_reg;
   static uint8_t ulaplus_palette[64];
@@ -257,7 +250,6 @@ public:
   static void ulaPlusFlushPalette();   // apply pending palette to hardware
   static void ulaPlusUpdateBorder();
   static void ulaPlusDisable();
-#endif
 
   // Palette transform (Default, Grayscale, etc.)
   static void applyPalette();

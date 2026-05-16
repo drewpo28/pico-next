@@ -51,9 +51,7 @@ using namespace std;
 #include "Z80_JLS/z80.h"
 #include "Tape.h"
 #include "wd1793.h"
-#if !PICO_RP2040
 #include "DivMMC.h"
-#endif
 
 #define MENU_MAX_ROWS 17
 
@@ -589,34 +587,28 @@ namespace {
     inline uint8_t slotCount(DiskIface iface) {
         switch (iface) {
             case IFACE_BETA: return 4;
-#if !PICO_RP2040
             case IFACE_ESX:
                 // Slots visible in popup depend on the active esxDOS interface.
                 if (Config::esxdos == 1) return 1; // DivMMC: hd0
                 if (Config::esxdos == 2) return 2; // DivIDE: hd0+hd1
                 return 0;                          // OFF / DivSD: no slots
-#endif
             default: return 0;
         }
     }
     inline bool slotHasWP(DiskIface iface) { return iface != IFACE_ESX; }
     inline string slotLabel(DiskIface iface, uint8_t idx) {
         if (iface == IFACE_BETA) return string("Drive ") + (char)('A' + idx);
-#if !PICO_RP2040
         if (iface == IFACE_ESX) {
             char b[8]; snprintf(b, sizeof(b), "hd%u", (unsigned)idx);
             return string(b);
         }
-#endif
         return "";
     }
     inline string slotFname(DiskIface iface, uint8_t idx) {
         if (iface == IFACE_BETA) {
             return ESPectrum::fdd.disk[idx] ? ESPectrum::fdd.disk[idx]->fname : "";
         }
-#if !PICO_RP2040
         if (iface == IFACE_ESX) return Config::esxdos_hdf_image[idx];
-#endif
         return "";
     }
     inline bool slotWP(DiskIface iface, uint8_t idx) {
@@ -636,12 +628,10 @@ namespace {
         if (iface == IFACE_BETA) {
             if (ESPectrum::fdd.disk[idx]) wdDiskEject(&ESPectrum::fdd, idx);
         }
-#if !PICO_RP2040
         else if (iface == IFACE_ESX) {
             Config::esxdos_hdf_image[idx].clear();
             DivMMC::init();
         }
-#endif
     }
     // Mount `fname` into `idx`; seed WP from the per-slot Config flag.
     // For esxDOS this triggers DivMMC::init() but not a full emulator reset —
@@ -654,12 +644,10 @@ namespace {
             if (ESPectrum::fdd.disk[idx])
                 ESPectrum::fdd.disk[idx]->writeprotect = Config::driveWP[idx];
         }
-#if !PICO_RP2040
         else if (iface == IFACE_ESX) {
             Config::esxdos_hdf_image[idx] = fname;
             DivMMC::init();
         }
-#endif
     }
 }
 

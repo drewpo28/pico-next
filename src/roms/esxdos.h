@@ -1,7 +1,6 @@
 #ifndef ROM_ESXDOS_H
 #define ROM_ESXDOS_H
 
-#if !PICO_RP2040
 
 const unsigned char gb_rom_esxdos[]={
 	// ESXMMC.BIN - 8192 bytes
@@ -690,6 +689,5 @@ const unsigned char gb_rom_esxdos[]={
 	0xC9, 0xFB, 0xC9, 0xE9, 0x3E, 0x14, 0x37, 0xC9
 };
 
-#endif // !PICO_RP2040
 
 #endif

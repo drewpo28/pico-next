@@ -77,7 +77,6 @@ static uint32_t irq_inx = 0;
 #define IDX_DI_GUARD        (221)
 #define IDX_DI_DATA_BASE    (222)   // 222..237 (16 entries for 32 pixel clocks)
 
-#if !PICO_RP2040
 // HDMI audio state
 #define HDMI_AUDIO_RING_SIZE 1024
 #define HDMI_AUDIO_RING_MASK (HDMI_AUDIO_RING_SIZE - 1)
@@ -101,7 +100,6 @@ static uint64_t guard_entry[2];
 static void __attribute__((noinline)) hdmi_audio_hw_init(void);
 static void hdmi_fill_di_indices_bp(uint8_t *line_buf, int h_sync_bytes, int h_bp_bytes);
 static void hdmi_fill_di_indices_vblank(uint8_t *line_buf, int h_sync_bytes, int line_bytes);
-#endif
 
 //программа конвертации адреса
 
@@ -376,7 +374,6 @@ ex:
             nf_memset(activ_buf + h_sync, BASE_HDMI_CTRL_INX, blanking_rest);
             nf_memset(activ_buf, BASE_HDMI_CTRL_INX + 1, h_sync);
 
-#if !PICO_RP2040
             if (hdmi_audio_enabled) {
                 // DI packets on specific vblank lines (ISR fires on odd lines only)
                 uint32_t vbl_line = line - mode.v_active;  // offset from start of vblank
@@ -398,7 +395,6 @@ ex:
                     hdmi_fill_di_indices_vblank(activ_buf, h_sync, line_sz);
                 }
             }
-#endif
         };
     }
 }
@@ -715,9 +711,7 @@ void graphics_set_palette(uint8_t i, uint32_t color888) {
 #endif
 
     if ((i >= BASE_HDMI_CTRL_INX) && (i != 255) && (i != IDX_SCANLINE)) return; //не записываем "служебные" цвета
-#if !PICO_RP2040
     if (hdmi_audio_enabled && i >= IDX_DI_PREAMBLE && i <= (IDX_DI_DATA_BASE + 15)) return;
-#endif
 
     uint64_t* conv_color64 = (uint64_t *)conv_color;
     const uint8_t R = (color888 >> 16) & 0xff;
@@ -741,11 +735,9 @@ void graphics_init_hdmi() {
     // Palette is initialized centrally by Video.cpp Init()
     hdmi_init();
 
-#if !PICO_RP2040
     if (hdmi_audio_enabled) {
         hdmi_audio_hw_init();
     }
-#endif
 }
 
 void graphics_set_bgcolor_hdmi(uint32_t color888) //определяем зарезервированный цвет в палитре
@@ -764,7 +756,6 @@ void hdmi_set_dither(bool enabled) {
 // ============================================================
 // HDMI Audio — Data Island encoding (RP2350 only)
 // ============================================================
-#if !PICO_RP2040
 
 // TERC4 encoding table: 4-bit value → 10-bit TMDS-like codeword (HDMI 1.3 spec Table 5-3)
 static const uint16_t terc4_table[16] = {
@@ -1019,4 +1010,3 @@ void hdmi_audio_write_sample(int16_t left, int16_t right) {
     }
 }
 
-#endif // !PICO_RP2040

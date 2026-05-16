@@ -266,27 +266,18 @@ mem_desc_t MemESP::rom[64];
 #define Z80_RAM_PAGE_ATTR __attribute__((section(".ram_128k"), aligned(4)))
 Z80_RAM_PAGE_ATTR static uint8_t pages46[MEM_PG_SZ * 2];
 Z80_RAM_PAGE_ATTR static uint8_t pages57[MEM_PG_SZ * 2];
-#if !PICO_RP2040
 // On RP2350 also keep pages 0-3 in the same SRAM region (64 KB more),
 // freeing ~64 KB of heap that would otherwise hold them via `new[]`.
 // On RP2040 heap is too tight (~148 KB total) to afford this, and page 0
 // is explicitly placed in PSRAM/swap in setup() to save heap for the
 // framebuffer — leave that path intact.
 Z80_RAM_PAGE_ATTR static uint8_t pages0123[MEM_PG_SZ * 4];
-#endif
 #undef Z80_RAM_PAGE_ATTR
 static mem_desc_t temp[8] = {
-#if !PICO_RP2040
     { pages0123 + MEM_PG_SZ * 0, 0 },
     { pages0123 + MEM_PG_SZ * 1, 1 },
     { pages0123 + MEM_PG_SZ * 2, 2 },
     { pages0123 + MEM_PG_SZ * 3, 3 },
-#else
-    { 0, 0 },
-    { 0, 1 },
-    { 0, 2 },
-    { 0, 3 },
-#endif
     { pages46   + MEM_PG_SZ * 0, 4 },
     { pages57   + MEM_PG_SZ * 0, 5 },
     { pages46   + MEM_PG_SZ * 1, 6 },
@@ -307,11 +298,9 @@ uint8_t MemESP::romLatch = 0;
 uint8_t MemESP::pagingLock = 0;
 uint8_t MemESP::romInUse = 0;
 
-#if !PICO_RP2040
 uint8_t* MemESP::page0_lo = nullptr;
 uint8_t* MemESP::page0_hi = nullptr;
 bool MemESP::divmmc_mapped = false;
 bool* MemESP::divmmc_hi_dirty = nullptr;
 bool* MemESP::divmmc_lo_dirty = nullptr;
-#endif
 

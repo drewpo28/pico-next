@@ -34,9 +34,7 @@
 #include "Debug.h"
 #include "ESPectrum.h"
 #include "wd1793.h"
-#if !PICO_RP2040
 #include "DivMMC.h"
-#endif
 
 
 // #include "Snapshot.h"
@@ -45,7 +43,6 @@
 
 uint8_t page;
 
-#if !PICO_RP2040
 #define PEEK8(result,address) \
  page = address >> 14; \
  VIDEO::Draw(3,MemESP::ramContended[page]); \
@@ -53,12 +50,6 @@ uint8_t page;
      result = ((address) < 0x2000) ? MemESP::page0_lo[address] : MemESP::page0_hi[(address) & 0x1FFF]; \
  else \
      result = MemESP::ramCurrent[page][address & 0x3fff];
-#else
-#define PEEK8(result,address) \
- page = address >> 14; \
- VIDEO::Draw(3,MemESP::ramContended[page]); \
- result = MemESP::ramCurrent[page][address & 0x3fff];
-#endif
 
 // miembros estáticos
 
@@ -961,9 +952,7 @@ IRAM_ATTR void Z80::check_trdos() {
         return;
     }
 
-#if !PICO_RP2040
     if (DivMMC::enabled) return; // DivMMC automap handled in fetchOpcode/exec_nocheck
-#endif
 
     if (ESPectrum::trdos == true || Z80Ops::is128) {
 
@@ -1101,7 +1090,6 @@ void Z80::doNMI(void) {
 
     activeNMI = false;
     lastFlagQ = false;
-#if !PICO_RP2040
     // ZEsarUX approach: reset DivMMC state before NMI so automap trap at 0x0066
     // fires correctly. Without this, if automap is already ON, preOpcFetch
     // won't set trap_after (it checks !automap) and 0x0066 reads C9=RET from
@@ -1111,7 +1099,6 @@ void Z80::doNMI(void) {
         DivMMC::automap = false;
         DivMMC::applyMapping();
     }
-#endif
     nmi();
 
 }
@@ -1235,7 +1222,6 @@ IRAM_ATTR void Z80::exec_nocheck() {
 
         uint8_t pg = REG_PCh >> 6;
         VIDEO::Draw_Opcode(MemESP::ramContended[pg]);
-#if !PICO_RP2040
         if (DivMMC::enabled) {
             DivMMC::preOpcFetch(REG_PC);
             // Fetch opcode from currently mapped memory
@@ -1249,7 +1235,6 @@ IRAM_ATTR void Z80::exec_nocheck() {
         } else if (pg == 0 && MemESP::divmmc_mapped) {
             opCode = (REG_PC < 0x2000) ? MemESP::page0_lo[REG_PC] : MemESP::page0_hi[REG_PC & 0x1FFF];
         } else
-#endif
         opCode = MemESP::ramCurrent[pg][REG_PC & 0x3fff];
 
         regR++;

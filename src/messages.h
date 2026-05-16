@@ -62,19 +62,11 @@ visit https://zxespectrum.speccy.org/contacto
 #define ERR_DIR_OPEN "Cannot open directory!"
 
 // OSD
-#if !defined(PICO_RP2040)
   #if PORT_VERSION_LEN <= 5
     #define OSD_TITLE  " ESPectrum v.1.2 (RP2350 port v." PORT_VERSION ")  "
   #else
     #define OSD_TITLE  " ESPectrum v.1.2 (RP2350 port v." PORT_VERSION ") "
   #endif
-#else
-  #if PORT_VERSION_LEN <= 5
-    #define OSD_TITLE  " ESPectrum v.1.2 (RP2040 port v." PORT_VERSION ")  "
-  #else
-    #define OSD_TITLE  " ESPectrum v.1.2 (RP2040 port v." PORT_VERSION ") "
-  #endif
-#endif
 // #define OSD_BOTTOM " SCIENCE LEADS TO PROGRESS              "
 #define OSD_BOTTOM " Murmulator port by MikeV73" EMU_VERSION
 
@@ -355,7 +347,6 @@ static const char *MENU_TAPE_NO_SD[2] = { MENU_TAPE_NO_SD_EN, MENU_TAPE_NO_SD_ES
 static const char *MENU_TAPEPLAYER[2] = { "Player mode\n", "Modo reproductor\n" };
 static const char *MENU_TAPEPLAYER2[2] = { "Input (P" _PIN_XSTR(LOAD_WAV_PIO) ")\n", "Entrada (P" _PIN_XSTR(LOAD_WAV_PIO) ")\n" };
 
-#if !PICO_RP2040
 #define MENU_STORAGE_MAIN_EN \
     "Storage\n"\
     "Tape\t>\n"\
@@ -369,19 +360,6 @@ static const char *MENU_TAPEPLAYER2[2] = { "Input (P" _PIN_XSTR(LOAD_WAV_PIO) ")
     "esxDOS\t>\n"\
     "Snapshots\t>\n"
 static const char *MENU_STORAGE_MAIN[2] = { MENU_STORAGE_MAIN_EN, MENU_STORAGE_MAIN_ES };
-#else
-#define MENU_STORAGE_MAIN_EN \
-    "Storage\n"\
-    "Tape\t>\n"\
-    "Betadisk\t>\n"\
-    "Snapshot\t>\n"
-#define MENU_STORAGE_MAIN_ES \
-    "Almacenamiento\n"\
-    "Casete\t>\n"\
-    "Betadisk\t>\n"\
-    "Snapshots\t>\n"
-static const char *MENU_STORAGE_MAIN[2] = { MENU_STORAGE_MAIN_EN, MENU_STORAGE_MAIN_ES };
-#endif
 
 #define MENU_STORAGE_MAIN_NO_SD_EN \
     "Storage\n"\
@@ -409,10 +387,8 @@ static const char *MENU_BETADISK_TAIL[2] = { MENU_BETADISK_TAIL_EN, MENU_BETADIS
 
 // Drive labels used by the dynamic menu builder.
 static const char *MENU_BETA_DRIVE_LETTERS[4] = { "A", "B", "C", "D" };
-#if !PICO_RP2040
 static const char *MENU_ESXDOS_TITLE[2] = { "esxDOS\n", "esxDOS\n" };
 static const char *MENU_IMG_TITLE[2] = { "esxDOS Image\n", "Imagen esxDOS\n" };
-#endif
 
 static const char *MENU_FASTMODE[2] = { "Fast Mode\n", "Modo rápido\n" };
 static const char *MENU_SOUNDLED[2] = { "Sound & LED\n", "Sonido y LED\n" };
@@ -462,12 +438,10 @@ static const char *OSD_LOAD_HINT_WP[2] = { "F2 toggle WP  F8 eject",
 static const char *OSD_LOAD_HINT_NOWP[2]={ "F8 eject",
                                             "F8 expulsar" };
 
-#if !PICO_RP2040
 // esxDOS menu labels.
 static const char *MENU_ESX_INTERFACE[2] = { "Interface",  "Interfaz" };
 static const char *MENU_ESX_INSERT[2]    = { "Insert disk\t>\n", "Insertar disco\t>\n" };
 static const char *MENU_ESX_EJECT[2]     = { "Eject disk\n",     "Expulsar disco\n" };
-#endif
 
 #define MENU_MAIN_EN \
 	"Volume\n"\
@@ -567,7 +541,6 @@ static const char *MENU_UPDATE_FW[2] = { MENU_UPDATE_EN, MENU_UPDATE_ES };
 	"Firmware\t{HK_USB_BOOT}\n"
 static const char *MENU_UPDATE_FW_NO_SD[2] = { MENU_UPDATE_NO_SD_EN, MENU_UPDATE_NO_SD_ES };
 
-#if !PICO_RP2040
 	#define MENU_VIDEO_EN \
 		"Video\n"\
 		"Mode\t>\n"\
@@ -594,37 +567,8 @@ static const char *MENU_UPDATE_FW_NO_SD[2] = { MENU_UPDATE_NO_SD_EN, MENU_UPDATE
 		"Timex Gfx Mode\t>\n"\
 		"DMA\t>\n"\
 		"Tramado HDMI (ULA+)\t>\n"
-#else
-	#define MENU_VIDEO_EN \
-		"Video\n"\
-		"Mode\t>\n"\
-		"Palette\t>\n"\
-		"Render type\t>\n"\
-		"Aspect Ratio\t>\n"\
-		"Scanlines\t>\n"\
-		"V-Sync\t>\n"
-	#define MENU_VIDEO_ES \
-		"Video\n"\
-		"Modo\t>\n"\
-		"Paleta\t>\n"\
-		"Tipo render\t>\n"\
-		"Relaci" "\xA2" "n de aspecto\t>\n"\
-		"Scanlines\t>\n"\
-		"V-Sync\t>\n"
-#endif
 static const char *MENU_VIDEO[2] = { MENU_VIDEO_EN, MENU_VIDEO_ES };
 
-#if PICO_RP2040
-#define MENU_VIDEO_MODE_EN \
-    "Mode\n"\
-    "640x480@60\t[6]\n"\
-    "640x480@50\t[5]\n"
-
-#define MENU_VIDEO_MODE_ES \
-    "Modo\n"\
-    "640x480@60\t[6]\n"\
-    "640x480@50\t[5]\n"
-#else
 #define MENU_VIDEO_MODE_EN \
     "Mode\n"\
     "640x480@60\t[6]\n"\
@@ -640,7 +584,6 @@ static const char *MENU_VIDEO[2] = { MENU_VIDEO_EN, MENU_VIDEO_ES };
     "720x480@60\t[H]\n"\
     "720x576@60!\t[X]\n"\
     "720x576@50\t[F]\n"
-#endif
 
 static const char *MENU_VIDEO_MODE[2] = { MENU_VIDEO_MODE_EN, MENU_VIDEO_MODE_ES };
 
@@ -670,7 +613,6 @@ static const char *MENU_VSYNC[2] = { "V-Sync\n", "V-Sync\n" };
 
 static const char *MENU_GIGASCREEN[2] = { "Gigascreen\n", "Gigascreen\n" };
 
-#if !defined(PICO_RP2040)
 #define MENU_RESET_EN \
     "Reset Menu\n"\
     "Soft reset\n"\
@@ -683,20 +625,6 @@ static const char *MENU_GIGASCREEN[2] = { "Gigascreen\n", "Gigascreen\n" };
     "Reset completo\t{HK_HARD_RESET}\n"\
     "Resetear RP2350\t{HK_REBOOT}\n"\
 	"Predeterminados\n"
-#else
-#define MENU_RESET_EN \
-    "Reset Menu\n"\
-    "Soft reset\n"\
-    "Hard reset\t{HK_HARD_RESET}\n"\
-    "RP2040 reset\t{HK_REBOOT}\n"\
-    "Defaults\n"
-#define MENU_RESET_ES \
-    "Resetear\n"\
-    "Reset parcial\n"\
-    "Reset completo\t{HK_HARD_RESET}\n"\
-    "Resetear RP2040\t{HK_REBOOT}\n"\
-	"Predeterminados\n"
-#endif
 static const char *MENU_RESET[2] = { MENU_RESET_EN, MENU_RESET_ES };
 
 #define MENU_DEBUG_EN \
@@ -780,18 +708,11 @@ static const char *MENU_AUDIO[2] = { MENU_AUDIO_EN, MENU_AUDIO_ES };
     "Teclas rapidas\t>\n"
 static const char *MENU_OTHER[2] = { MENU_OTHER_EN, MENU_OTHER_ES };
 
-#ifdef PICO_RP2040
-#define MENU_CPU_MHZ \
-    "CPU MHz\n"\
-    "[2] 252 MHz\n"\
-    "[3] 378 MHz\n"
-#else
 #define MENU_CPU_MHZ \
     "CPU MHz\n"\
     "[2] 252 MHz\n"\
     "[3] 378 MHz\n"\
     "[5] 504 MHz\n"
-#endif
 
 #define MENU_HARDWARE_EN \
     "Hardware\n"\
@@ -819,7 +740,6 @@ static const char *MENU_HARDWARE[2] = { MENU_HARDWARE_EN, MENU_HARDWARE_ES };
     "CPU Freq\t>\n"\
     "Flash Freq\t>\n"\
     "PSRAM Freq\t>\n"
-#if !PICO_RP2040
 #define MENU_OVERCLOCK_VREG_EN \
     "Overclock\n"\
     "CPU Freq\t>\n"\
@@ -833,7 +753,6 @@ static const char *MENU_HARDWARE[2] = { MENU_HARDWARE_EN, MENU_HARDWARE_ES };
     "Flash Freq\t>\n"\
     "PSRAM Freq\t>\n"
 static const char *MENU_OVERCLOCK_VREG[2] = { MENU_OVERCLOCK_VREG_EN, MENU_OVERCLOCK_VREG_ES };
-#endif
 static const char *MENU_OVERCLOCK[2] = { MENU_OVERCLOCK_EN, MENU_OVERCLOCK_ES };
 
 #define MENU_FLASH_FREQ \
@@ -853,7 +772,6 @@ static const char *MENU_OVERCLOCK[2] = { MENU_OVERCLOCK_EN, MENU_OVERCLOCK_ES };
     "[D] 133 MHz\n"\
     "[E] 166 MHz\n"
 
-#if !PICO_RP2040
 #define MENU_VREG_VOLTAGE \
     "VReg Voltage\n"\
     "[A] 1.15 V\n"\
@@ -867,11 +785,9 @@ static const char *MENU_OVERCLOCK[2] = { MENU_OVERCLOCK_EN, MENU_OVERCLOCK_ES };
     "[I] 1.65 V\n"\
     "[J] 1.70 V\n"\
     "[K] 1.80 V\n"
-#endif
 
 static const char *MENU_AY48[2] = { "Turned on?\n" , "Turned on?\n"};
 
-#if !PICO_RP2040
 static const char *MENU_ULAPLUS[2] = { "ULA+\n", "ULA+\n"};
 static const char *MENU_HDMI_DITHER[2] = { "HDMI Dither (ULA+)\n", "Tramado HDMI (ULA+)\n"};
 static const char *MENU_TIMEX[2] = { "Timex Gfx Mode\n", "Timex Gfx Mode\n"};
@@ -880,7 +796,6 @@ static const char *MENU_TIMEX[2] = { "Timex Gfx Mode\n", "Timex Gfx Mode\n"};
     "zxnDMA (port #6B)\t[X]\n"
 #define MENU_DMA_ES MENU_DMA_EN
 static const char *MENU_DMA[2] = { MENU_DMA_EN, MENU_DMA_ES };
-#endif
 
 #define MENU_PALETTE_EN \
     "Palette\n"\
@@ -979,18 +894,10 @@ static const char *MENU_ISSUE2[2] = { "48K Issue 2\n", "48K Issue 2\n"};
 	"Spectrum Next\t>\n"
 static const char *MENU_ARCH[2] = { MENU_ARCH_EN MENU_ARCHS, MENU_ARCH_ES MENU_ARCHS };
 
-#if PICO_RP2040
-// RP2040 without SD/PSRAM/butter has no backing for ram[0], ram[4], ram[6] —
-// 48K boots by luck (writes to 0xC000-0xFFFF silently drop, reads from bootrom).
-// 128K does real paging → NULL deref → Z80 loops on junk → hang.
-#define MENU_ARCHS_NO_SD \
-    "Spectrum 48K\t>\n"
-#else
 #define MENU_ARCHS_NO_SD \
     "Spectrum 48K\t>\n"\
     "Spectrum 128K\t>\n"\
 	"Spectrum Next\t>\n"
-#endif
 static const char *MENU_ARCH_NO_SD[2] = { MENU_ARCH_EN MENU_ARCHS_NO_SD, MENU_ARCH_ES MENU_ARCHS_NO_SD };
 
 #define MENU_ROMS48_EN "Select ROM\n"\

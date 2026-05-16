@@ -77,9 +77,7 @@ static const uint16_t sectdatapos[16]= { 162,554,946,1338,1730,2122,2514,2906,32
 #define IRAM_ATTR
 #endif
 
-#if !PICO_RP2040
 static uint16_t vgCrc(uint16_t crc, uint8_t byte);
-#endif
 
 #ifndef ESP_PLATFORM
 #define heap_caps_calloc(n, size, caps) calloc(n, size)
@@ -440,10 +438,8 @@ IRAM_ATTR void _do(rvmWD1793 *wd) {
     }
 
     case kRVMWD177XTypeIICommand: {
-#if !PICO_RP2040
       if (wd->disk[wd->diskS] && wd->disk[wd->diskS]->IsFDIFile)
           wd->fdiTstates = 0;
-#endif
 
       if((wd->command & 0xc0)==0x80) { // Read or Write Sector
 
@@ -577,9 +573,7 @@ IRAM_ATTR void _do(rvmWD1793 *wd) {
         // Use real size for UDI/FDI, hardcode 256 for TRD/SCL (Betadisk standard)
         {
             uint32_t sz = 128 << (wd->header[4] & 0x03);
-#if !PICO_RP2040
             if (!wd->disk[wd->diskS]->IsUDIFile && !wd->disk[wd->diskS]->IsFDIFile)
-#endif
                 sz = 0x100;
             wd->c = sz;
         }
@@ -675,7 +669,6 @@ case kRVMWD177XWriteData: {
 
       wd->control&=~kRVMWD177XWriting;
 
-#if !PICO_RP2040
       // On real WD1793, writing a sector produces valid CRC. Fix the MFM buffer
       // and cached flags so subsequent reads on this track return correct CRC.
       if (wd->disk[wd->diskS] && wd->disk[wd->diskS]->IsFDIFile && wd->diskDirty) {
@@ -709,7 +702,6 @@ case kRVMWD177XWriteData: {
               }
           }
       }
-#endif
 
       // Write buffer to diskfile
       // int saveptr = ftell(wd->disk[wd->diskS]->Diskfile);
@@ -744,7 +736,6 @@ case kRVMWD177XWriteData: {
       } else if(wd->a==0xfb) {
         wd->status&=~kRVMWD177XStatusRecordType;
       } else {
-#if !PICO_RP2040
         // FDI: data mark not found after ID match (sector has no data area).
         // Go to ReadHeader (preserves retry) and force index pulse so retry
         // decrements — prevents infinite loop from TypeIICommand resetting retry=5.
@@ -755,7 +746,6 @@ case kRVMWD177XWriteData: {
             _do(wd);
             return;
         }
-#endif
         wd->state=kRVMWD177XTypeIICommand;
         _do(wd);
         wd->stepState=kRVMWD177XNone;
@@ -790,12 +780,10 @@ case kRVMWD177XWriteData: {
       // printf("Read CRC byte: %02x CRC: %04x\n",wd->a,wd->crc);
       if(!--wd->c) { // CRC readed
 
-#if !PICO_RP2040
         if (wd->disk[wd->diskS] && wd->disk[wd->diskS]->IsFDIFile && wd->fdiDataCrcError) {
           wd->status |= kRVMWD177XStatusCRC;
           wd->fdiDataCrcError = false;
         } else
-#endif
           wd->status&=~kRVMWD177XStatusCRC;
 
         if(wd->command & 0x10) { // Read sector: Multiple record flag on
@@ -913,9 +901,7 @@ case kRVMWD177XWriteTrack: {
               // wd->wtrackmark=0b1000000000;
               // For raw format disks (UDI/FDI), indx runs sequentially through the track buffer;
               // sectdatapos repositioning is only valid for TRD's fixed sector layout.
-#if !PICO_RP2040
               if (!wd->disk[wd->diskS]->IsUDIFile && !wd->disk[wd->diskS]->IsFDIFile)
-#endif
               wd->disk[wd->diskS]->indx = sectdatapos[wd->wtracksector - 1] + 41;
             } else if (wd->wtrackmark & 0b100000000) {
               wd->wtrackmark++;
@@ -1070,7 +1056,6 @@ IRAM_ATTR void rvmWD1793Step(rvmWD1793 *wd, uint32_t steps) {
         }
         // end _checkIndex
 
-#if !PICO_RP2040
         // FDI: empty track (0 sectors) — report Record Not Found immediately
         // instead of spinning for 5 full revolutions (~5 seconds).
         if (wd->disk[wd->diskS] && wd->disk[wd->diskS]->IsFDIFile
@@ -1149,7 +1134,6 @@ IRAM_ATTR void rvmWD1793Step(rvmWD1793 *wd, uint32_t steps) {
                 break;
             }
         }
-#endif
 
         if((wd->marka & 0xff) == dd) {
           wd->marka >>= 8;
@@ -1492,7 +1476,6 @@ void rvmWD1793Reset(rvmWD1793 *wd) {
   wd->crc = 0; // Disable CRC. Not needed for Betadisk emulation
   wd->side = wd->diskS = 0;
   // UDI/FDI raw-format disks require fastmode=false (sectdatapos incompatible with raw MFM)
-#if !PICO_RP2040
   {
     bool hasRawDisk = false;
     for (int i = 0; i < 4; i++)
@@ -1500,11 +1483,7 @@ void rvmWD1793Reset(rvmWD1793 *wd) {
         hasRawDisk = true;
     wd->fastmode = hasRawDisk ? false : Config::trdosFastMode;
   }
-#else
-  wd->fastmode = Config::trdosFastMode;
-#endif
   wd->sclConverted = false;
-#if !PICO_RP2040
   // Flush modified UDI/FDI track to SD before resetting (avoid data loss)
   if (wd->diskDirty && wd->diskLoadedCyl >= 0) {
     rvmwdDisk *disk = wd->disk[wd->diskS];
@@ -1528,7 +1507,6 @@ void rvmWD1793Reset(rvmWD1793 *wd) {
   wd->fdiTstates = 0;
   wd->fdiSectorCount = 0;
   wd->fdiDataCrcError = false;
-#endif
 }
 
 bool rvmWD1793InsertDisk(rvmWD1793 *wd, unsigned char UnitNum, const std::string& Filename) {
@@ -1558,17 +1536,14 @@ bool rvmWD1793InsertDisk(rvmWD1793 *wd, unsigned char UnitNum, const std::string
         // SCL file
         printf("SCL disk loaded\n");
         wd->disk[UnitNum]->IsSCLFile=true;
-#if !PICO_RP2040
         wd->disk[UnitNum]->IsUDIFile = false;
         wd->disk[UnitNum]->IsFDIFile = false;
-#endif
         wd->disk[UnitNum]->fname = Filename;
         // writeprotect is seeded by the caller from the per-slot Config array.
         wd->disk[UnitNum]->writeprotect = 0;
         wd->fastmode = Config::trdosFastMode;
         diskType = 0x16;
 
-#if !PICO_RP2040
     } else if (std::strncmp(magic,"UDI!",4) == 0) {
         // UDI file
         printf("UDI disk loaded\n");
@@ -1670,14 +1645,11 @@ bool rvmWD1793InsertDisk(rvmWD1793 *wd, unsigned char UnitNum, const std::string
 
         printf("FDI: %d cylinders, %d sides\n", cyls, sides);
         return true;
-#endif
 
     } else {
         wd->disk[UnitNum]->IsSCLFile = false;
-#if !PICO_RP2040
         wd->disk[UnitNum]->IsUDIFile = false;
         wd->disk[UnitNum]->IsFDIFile = false;
-#endif
         // writeprotect is seeded by the caller from the per-slot Config array.
         wd->disk[UnitNum]->writeprotect = 0;
         wd->disk[UnitNum]->sclDataOffset = 0;
@@ -1745,7 +1717,6 @@ bool rvmWD1793InsertDisk(rvmWD1793 *wd, unsigned char UnitNum, const std::string
 
 }
 
-#if !PICO_RP2040
 static void udiFlushTrack(rvmWD1793 *wd) {
     rvmwdDisk *disk = wd->disk[wd->diskS];
     if (!disk || wd->diskLoadedCyl < 0) return;
@@ -2037,7 +2008,6 @@ void fdiLoadTrack(rvmWD1793 *wd, uint32_t cyl, uint8_t side) {
     wd->diskLoadedSide = (int)side;
 }
 
-#endif
 
 IRAM_ATTR uint8_t rvmwdDiskStep(rvmWD1793 *wd, uint32_t control) {
 
@@ -2075,7 +2045,6 @@ IRAM_ATTR uint8_t rvmwdDiskStep(rvmWD1793 *wd, uint32_t control) {
 
   } else {
 
-#if !PICO_RP2040
     if (disk->IsUDIFile) {
 
       // During seek (Type I), don't load track data — only update disk->t and status.
@@ -2160,7 +2129,6 @@ IRAM_ATTR uint8_t rvmwdDiskStep(rvmWD1793 *wd, uint32_t control) {
 
     }
 
-#endif
 
     if(disk->indx != 0xffffffff && disk->indx >= /*6417*/ 6663) {
       disk->indx = 0xffffffff;
@@ -2244,12 +2212,10 @@ void wdDiskEject(rvmWD1793 *wd, unsigned char UnitNum) {
     printf("Ejecting disk\n");
 
     if (wd->disk[UnitNum]->Diskfile != NULL) {
-#if !PICO_RP2040
         if (wd->diskDirty && wd->diskS == UnitNum) {
             if (wd->disk[UnitNum]->IsUDIFile) udiFlushTrack(wd);
             else if (wd->disk[UnitNum]->IsFDIFile) fdiFlushTrack(wd);
         }
-#endif
         fclose2(wd->disk[UnitNum]->Diskfile);
         wd->disk[UnitNum]->Diskfile = NULL;
     }

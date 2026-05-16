@@ -51,11 +51,9 @@ visit https://zxespectrum.speccy.org/contacto
 #include "OSDMain.h"
 
 #include "Z80DMA.h"
-#if !PICO_RP2040
 #include "DivMMC.h"
 #include "hardware/gpio.h"
 #include "sdcard.h"
-#endif
 
 // Place hot port functions in SRAM instead of XIP flash
 #undef IRAM_ATTR
@@ -192,7 +190,6 @@ IRAM_ATTR uint8_t Ports::input(uint16_t address) {
     }
   } else {
     ioContentionLate(MemESP::ramContended[rambank]);
-#if !PICO_RP2040
     // ULA+ data port read
     if (Config::ulaplus && address == 0xFF3B) {
       uint8_t reg = VIDEO::ulaplus_reg;
@@ -211,11 +208,9 @@ IRAM_ATTR uint8_t Ports::input(uint16_t address) {
       ioContentionLate(MemESP::ramContended[rambank]);
       return Z80DMA::readPort();
     }
-#endif
     // The default port value is 0xFF.
     data = 0xff;
 
-#if !PICO_RP2040
     if (DivMMC::enabled) {
       uint8_t lo = address & 0xFF;
       if (lo == 0xE3) {
@@ -235,16 +230,13 @@ IRAM_ATTR uint8_t Ports::input(uint16_t address) {
         }
       }
     }
-#endif
 
     // Beta-128 ports: accessible when TR-DOS ROM is paged in,
     // or when a raw-format disk (UDI/FDI) is inserted (copy-protected loaders
     // access WD1793 ports from RAM with TR-DOS ROM paged out)
     if (ESPectrum::trdos
-#if !PICO_RP2040
         || (ESPectrum::fdd.disk[ESPectrum::fdd.diskS] &&
             (ESPectrum::fdd.disk[ESPectrum::fdd.diskS]->IsUDIFile || ESPectrum::fdd.disk[ESPectrum::fdd.diskS]->IsFDIFile))
-#endif
     ) {
 
       uint8_t dat;
@@ -390,11 +382,9 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
       VIDEO::Draw(0, true);
       VIDEO::DrawBorder();
       VIDEO::borderColor = data & 0x07;
-#if !PICO_RP2040
       if (VIDEO::ulaplus_enabled)
         VIDEO::ulaPlusUpdateBorder();
       else
-#endif
         VIDEO::brd = VIDEO::border32[VIDEO::borderColor];
     }
     if (Config::tape_player)
@@ -421,7 +411,6 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
     }
     VIDEO::Draw(3, true); // I/O Contention (Late)
   } else {
-#if !PICO_RP2040
     // ULA+ ports (odd addresses: 0xBF3B register select, 0xFF3B data)
     if (Config::ulaplus) {
       if (address == 0xBF3B) {
@@ -455,13 +444,11 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
         return;
       }
     }
-#endif
     int covox = Config::covox;
     if ((covox == 1 && a8 == 0xFB) || (covox == 2 && a8 == 0xDD)) {
       ESPectrum::lastCovoxVal = data;
       ESPectrum::CovoxGetSample();
     }
-#if !PICO_RP2040
     // zxnDMA port write (port 0x6B)
     if (Config::dma_mode && a8 == 0x6B) {
       Z80DMA::writePort(data);
@@ -477,7 +464,6 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
       ioContentionLate(MemESP::ramContended[rambank]);
       return;
     }
-#endif
     // AY
     // ========================================================================
     if ((ESPectrum::AY_emu) &&
@@ -503,7 +489,6 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
       ioContentionLate(MemESP::ramContended[rambank]);
       return;
     }
-#if !PICO_RP2040
     if (DivMMC::enabled) {
       uint8_t lo = address & 0xFF;
       if (lo == 0xE3) {
@@ -530,7 +515,6 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
         }
       }
     }
-#endif
 
     // Check if TRDOS Rom is mapped.
     if (ESPectrum::trdos) {
@@ -641,11 +625,9 @@ IRAM_ATTR void Ports::dmaOutput(uint16_t address, uint8_t data) {
             VIDEO::brdChange = true;
             VIDEO::DrawBorder();
             VIDEO::borderColor = data & 0x07;
-#if !PICO_RP2040
             if (VIDEO::ulaplus_enabled)
                 VIDEO::ulaPlusUpdateBorder();
             else
-#endif
                 VIDEO::brd = VIDEO::border32[VIDEO::borderColor];
         }
         int Audiobit;

@@ -1,6 +1,5 @@
 #include "DivMMC.h"
 
-#if !PICO_RP2040
 
 #include <cstring>
 #include "MemESP.h"
@@ -1184,4 +1183,3 @@ void DivMMC::ide_write(uint8_t reg, uint8_t value) {
     }
 }
 
-#endif // !PICO_RP2040

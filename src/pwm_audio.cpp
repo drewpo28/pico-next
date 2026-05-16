@@ -9,7 +9,7 @@
 #include "Debug.h"
 #include "LoadWavStream.h"
 #include "PinSerialData_595.h"
-#if !PICO_RP2040 && defined(VGA_HDMI)
+#if defined(VGA_HDMI)
 #include "hdmi.h"
 #endif
 
@@ -275,7 +275,7 @@ static bool hw_get_bit_LOAD() {
 #endif
 
 void init_sound() {
-#if !PICO_RP2040 && defined(VGA_HDMI)
+#if defined(VGA_HDMI)
     if (Config::audio_driver == 4) {
         Debug::log("init_sound: HDMI audio mode");
         hdmi_audio_init();
@@ -350,7 +350,7 @@ void pcm_audio_in_stop(void) {
 #endif
 
 static void __not_in_flash_func(pcm_call_inner)() {
-#if !PICO_RP2040  && defined(VGA_HDMI)
+#if defined(VGA_HDMI)
     if (Config::audio_driver == 4) {
         if (m_off < m_size) {
             hdmi_audio_write_sample(buff_L[m_off], buff_R[m_off]);
@@ -415,11 +415,9 @@ void pcm_call() {
 void pcm_cleanup(void) {
     cancel_repeating_timer(&m_timer);
     m_timer.delay_us = 0;
-#if !PICO_RP2040
     if (Config::audio_driver == 4) {
         return;  // HDMI audio — no hardware to clean up
     }
-#endif
     if (Config::audio_driver == 3) {
         // TODO:
     }
@@ -439,13 +437,11 @@ void pcm_setup(int hz) {
     // Flush output buffer so pcm_call() outputs silence until new data arrives
     m_size = 0;
     m_off = 0;
-#if !PICO_RP2040
     if (Config::audio_driver == 4) {
         // HDMI audio — timer only, no I2S/PWM hardware
         add_repeating_timer_us(-1000000 / hz, timer_callback, NULL, &m_timer);
         return;
     }
-#endif
     if (Config::audio_driver == 3) {
         // TODO:
     }

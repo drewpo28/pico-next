@@ -63,9 +63,7 @@ visit https://zxespectrum.speccy.org/contacto
 #include "kbd_img.h"
 extern "C" void graphics_set_scanlines(bool enabled);
 extern "C" void graphics_set_dither(bool enabled);
-#if !PICO_RP2040
 #include "DivMMC.h"
-#endif
 
 #include <malloc.h>
 
@@ -706,7 +704,6 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
         }
         else
         if (hkIdx == Config::HK_RESET_TO) { // Reset to...
-#if !PICO_RP2040
             if (DivMMC::enabled) {
                 menu_level = 0;
                 menu_curopt = 1;
@@ -731,7 +728,6 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                     ESPectrum::reset();
                 }
             } else
-#endif
             if (Z80Ops::is48) {
                 // 48K - just reset directly
                 if (Config::ram_file != NO_RAM_FILE) Config::ram_file = NO_RAM_FILE;
@@ -770,7 +766,6 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
             }
         }
         else if (FileUtils::fsMount && hkIdx == Config::HK_DISK) {
-#if !PICO_RP2040
             if (DivMMC::enabled) {
                 menu_level = 0;
                 menu_saverect = false;
@@ -792,7 +787,6 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                 }
                 if (VIDEO::OSD) OSD::drawStats();
             } else
-#endif
             while (1) {
                 menu_level = 0;
                 menu_saverect = false;
@@ -889,9 +883,7 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
             {
                 Config::gigascreen_onoff = (Config::gigascreen_onoff + 1) % 3; // Off -> On -> Auto -> Off
                 if (Config::gigascreen_onoff == 1) {
-#if !PICO_RP2040
                     VIDEO::InitPrevBuffer(); // seed prev from current FB to avoid stale-frame flash
-#endif
                     VIDEO::gigascreen_enabled = true;
                 }
                 else {
@@ -1086,7 +1078,6 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                         Config::last_ram_file = fname;
                     }
                 }
-#if !PICO_RP2040
                 else if (ext == "mmc" || ext == "hdf") {
                     // DivMMC/DivIDE image — Enter loads into hd0 (slot 0); F5 opens
                     // the slot popup which mounts in-place and keeps the popup open.
@@ -1108,7 +1099,6 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                         OSD::osdCenteredMsg(OSD_IMG_NEEDS_ESXDOS[Config::lang], LEVEL_WARN);
                     }
                 }
-#endif
             }
             if (VIDEO::OSD) OSD::drawStats(); // Redraw stats for 16:9 modes
         } else if (hkIdx == Config::HK_TAPE_PLAY) {
@@ -1139,9 +1129,7 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                 uint8_t mode = VIDEO::OSD & 0x03;
                 bool hasFdd = Z80Ops::is128
                         && Tape::tapeStatus != TAPE_LOADING
-#if !PICO_RP2040
                     && !DivMMC::enabled
-#endif
                     ;
                 uint8_t maxMode = hasFdd ? 3 : 2;
 
@@ -1722,7 +1710,6 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                             }
                         }
                     }
-#if !PICO_RP2040
                     else if (FileUtils::fsMount && stor_num == 3) { // esxDOS
                         static const char* mode_names[] = { "OFF", "DivMMC", "DivIDE", "DivSD" };
                         menu_saverect = true;
@@ -1828,12 +1815,7 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                             }
                         }
                     }
-#endif
-#if !PICO_RP2040
                     else if (FileUtils::fsMount && stor_num == 4) { // Snapshot
-#else
-                    else if (FileUtils::fsMount && stor_num == 3) { // Snapshot
-#endif
                         menu_saverect = true;
                         menu_curopt = 1;
                         while(1) {
@@ -1921,11 +1903,7 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                                 }
                                 menu_curopt = sna_mnu;
                             } else {
-#if !PICO_RP2040
                                 menu_curopt = 4;
-#else
-                                menu_curopt = 3;
-#endif
                                 menu_level = 1;
                                 break;
                             }
@@ -2127,11 +2105,7 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                                     menu_saverect = false;
                                 } else {
                                     menu_curopt =
-#if !PICO_RP2040
                                         6;
-#else
-                                        5;
-#endif
                                     menu_level = 1;
                                     break;
                                 }
@@ -2170,11 +2144,9 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                                 uint8_t cur_sel = curVideoMode;
                                 opt_menu.replace(opt_menu.find("[6",0),2, cur_sel == 0 ? "[*" : "[ ");
                                 opt_menu.replace(opt_menu.find("[5",0),2, cur_sel == 1 ? "[*" : "[ ");
-                            #if !PICO_RP2040
                                 opt_menu.replace(opt_menu.find("[H",0),2, cur_sel == 2 ? "[*" : "[ ");
                                 opt_menu.replace(opt_menu.find("[X",0),2, cur_sel == 3 ? "[*" : "[ ");
                                 opt_menu.replace(opt_menu.find("[F",0),2, cur_sel == 4 ? "[*" : "[ ");
-                            #endif
                                 uint8_t opt2 = menuRun(opt_menu);
                                 if (opt2) {
                                     uint8_t new_vm = opt2 - 1; // opt2 is 1-based, VM_* is 0-based
@@ -2389,7 +2361,6 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                                 }
                             }
                         }
-                        #if !PICO_RP2040
                         else if (options_num == 7) {
                             menu_level = 2;
                             menu_curopt = 1;
@@ -2414,14 +2385,12 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
 
                                     if (Config::gigascreen_enabled != prev_opt) {
                                         if (Config::gigascreen_enabled) {
-#if !PICO_RP2040
                                             initGigascreenBlendLUT();
                                             VIDEO::InitPrevBuffer();
                                             if (!VIDEO::vga.prevFrameBuffer) {
                                                 Config::gigascreen_enabled = false;
                                                 VIDEO::gigascreen_enabled = false;
                                             }
-#endif
                                             if (Config::gigascreen_onoff == 0)
                                                 Config::gigascreen_onoff = 1; // Off->On when enabling
                                             if (Config::gigascreen_onoff == 1)
@@ -2587,7 +2556,6 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                                 }
                             }
                         }
-                        #endif
                     } else {
                         menu_curopt = 4;
                         break;
@@ -3470,11 +3438,7 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                         menu_curopt = 1;
                         menu_saverect = true;
                         while (1) {
-                        #if !PICO_RP2040
                             uint8_t oc_opt = menuRun(MENU_OVERCLOCK_VREG[Config::lang]);
-                        #else
-                            uint8_t oc_opt = menuRun(MENU_OVERCLOCK[Config::lang]);
-                        #endif
                             if (oc_opt == 1) {
                                 // CPU Freq
                                 menu_level = 3;
@@ -3485,17 +3449,13 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                                     uint16_t cur = Config::cpu_mhz;
                                     mhz_menu.replace(mhz_menu.find("[2"), 2, cur == 252 ? "[*" : "[ ");
                                     mhz_menu.replace(mhz_menu.find("[3"), 2, cur == 378 ? "[*" : "[ ");
-                                #if !PICO_RP2040
                                     mhz_menu.replace(mhz_menu.find("[5"), 2, cur == 504 ? "[*" : "[ ");
-                                #endif
                                     uint8_t opt2 = menuRun(mhz_menu);
                                     if (opt2) {
                                         uint16_t new_mhz = 0;
                                         if (opt2 == 1) new_mhz = 252;
                                         else if (opt2 == 2) new_mhz = 378;
-                                    #if !PICO_RP2040
                                         else if (opt2 == 3) new_mhz = 504;
-                                    #endif
                                         if (new_mhz && new_mhz != cur) {
                                             Config::cpu_mhz = new_mhz;
                                             if (confirmReboot(OSD_DLG_APPLYREBOOT)) {
@@ -3514,7 +3474,6 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                                     }
                                 }
                             }
-                        #if !PICO_RP2040
                             else if (oc_opt == 2) {
                                 // VReg Voltage
                                 menu_level = 3;
@@ -3557,9 +3516,6 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                             }
                             // Flash Freq (opt 3 on RP2350, opt 2 on RP2040)
                             else if (oc_opt == 3) {
-                        #else
-                            else if (oc_opt == 2) {
-                        #endif
                                 // Flash Freq
                                 menu_level = 3;
                                 menu_curopt = 1;
@@ -3588,22 +3544,14 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                                         menu_curopt = opt2;
                                         menu_saverect = false;
                                     } else {
-                                    #if !PICO_RP2040
                                         menu_curopt = 3;
-                                    #else
-                                        menu_curopt = 2;
-                                    #endif
                                         menu_level = 2;
                                         break;
                                     }
                                 }
                             }
-                        #if !PICO_RP2040
                             // PSRAM Freq (opt 4 on RP2350, opt 3 on RP2040)
                             else if (oc_opt == 4) {
-                        #else
-                            else if (oc_opt == 3) {
-                        #endif
                                 // PSRAM Freq
                                 menu_level = 3;
                                 menu_curopt = 1;
@@ -3632,11 +3580,7 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                                         menu_curopt = opt2;
                                         menu_saverect = false;
                                     } else {
-                                    #if !PICO_RP2040
                                         menu_curopt = 4;
-                                    #else
-                                        menu_curopt = 3;
-                                    #endif
                                         menu_level = 2;
                                         break;
                                     }
@@ -4823,11 +4767,7 @@ static void saveDumpToFile(uint16_t addr_from, uint16_t addr_to) {
 
     snprintf(line, sizeof(line), "pagingLock: %d  page0ram: %d  newSRAM: %d  divmmc: %d\n",
         MemESP::pagingLock, MemESP::page0ram, MemESP::newSRAM,
-#if !PICO_RP2040
         MemESP::divmmc_mapped
-#else
-        0
-#endif
     );
     f_write(f, line, strlen(line), &bw);
 
@@ -6293,14 +6233,12 @@ void OSD::HWInfo() {
         pos += snprintf(hwtext + pos, sizeof(hwtext) - pos, " 16K RAM pages  : %d[s%d:b%d:p%d:v%d]\n",
             ram_pages + butter_pages + psram_pages + swap_pages, ram_pages, butter_pages, psram_pages, swap_pages);
 
-#if !PICO_RP2040
     if (DivMMC::enabled) {
         const char* mode_names[] = { "OFF", "DivMMC", "DivIDE", "DivSD" };
         const char* mem_type = DivMMC::use_psram ? "PSRAM" : "swap";
         pos += snprintf(hwtext + pos, sizeof(hwtext) - pos, " %-15s: 128K+8K [%s]\n",
             mode_names[Config::esxdos], mem_type);
     }
-#endif
 
     pos += snprintf(hwtext + pos, sizeof(hwtext) - pos,
         "\n"
@@ -6526,14 +6464,12 @@ void OSD::BoardInfo() {
         pos += snprintf(buf + pos, sizeof(buf) - pos, " 16K RAM pages  : %d[s%d:b%d:p%d:v%d]\n",
             ram_pages + butter_pages + psram_pages + swap_pages, ram_pages, butter_pages, psram_pages, swap_pages);
 
-#if !PICO_RP2040
     if (DivMMC::enabled) {
         const char* mode_names[] = { "OFF", "DivMMC", "DivIDE", "DivSD" };
         const char* mem_type = DivMMC::use_psram ? "PSRAM" : "swap";
         pos += snprintf(buf + pos, sizeof(buf) - pos, " %-15s: 128K+8K [%s]\n",
             mode_names[Config::esxdos], mem_type);
     }
-#endif
 
     // GPIO pins (all labels 16 chars after "  " prefix, colon at col 18)
     pos += snprintf(buf + pos, sizeof(buf) - pos, "\n GPIO pins:\n");
@@ -6654,7 +6590,6 @@ void OSD::EmulatorInfo() {
             Config::scanlines ? "On" : "Off",
             Config::render ? "Snow effect" : "Standard",
             VIDEO::paletteName(Config::palette));
-#if !PICO_RP2040
         {
             const char* gs;
             if (!Config::gigascreen_enabled || Config::gigascreen_onoff == 0) gs = "Off";
@@ -6668,7 +6603,6 @@ void OSD::EmulatorInfo() {
                 Config::ulaplus ? "On" : "Off",
                 Config::timex_video ? "On (#FF)" : "Off");
         }
-#endif
     }
 
     // --- Sound ---
@@ -6746,7 +6680,6 @@ void OSD::EmulatorInfo() {
     {
         pos += snprintf(buf + pos, sizeof(buf) - pos, "\n --- Storage ---\n");
 
-#if !PICO_RP2040
         // esxDOS
         {
             static const char* esx[] = { "Off", "DivMMC", "DivIDE", "DivSD" };
@@ -6771,7 +6704,6 @@ void OSD::EmulatorInfo() {
                 pos += snprintf(buf + pos, sizeof(buf) - pos, "\n");
             }
         }
-#endif
 
         // TR-DOS — available on Spectrum 128K
         {
@@ -6800,13 +6732,11 @@ void OSD::EmulatorInfo() {
             }
         }
 
-#if !PICO_RP2040
         // DMA
         if (Config::dma_mode == 1)
             pos += snprintf(buf + pos, sizeof(buf) - pos, " DMA            : zxnDMA (#6B)\n");
         else
             pos += snprintf(buf + pos, sizeof(buf) - pos, " DMA            : Off\n");
-#endif
 
         // Tape
         pos += snprintf(buf + pos, sizeof(buf) - pos, " Tape           : ");
@@ -7819,11 +7749,7 @@ const char* const hkDescEN[Config::HK_COUNT] = {
     "Volume down",          // HK_VOL_DOWN
     "Volume up",            // HK_VOL_UP
     "Hard reset",           // HK_HARD_RESET
-#if PICO_RP2040
-    "Reboot RP2040",        // HK_REBOOT
-#else
     "Reboot RP2350",        // HK_REBOOT
-#endif
     "Max speed toggle",     // HK_MAX_SPEED
     "Pause",                // HK_PAUSE
     "Hardware info",        // HK_HW_INFO
@@ -7855,11 +7781,7 @@ const char* const hkDescES[Config::HK_COUNT] = {
     "Bajar volumen",         // HK_VOL_DOWN
     "Subir volumen",         // HK_VOL_UP
     "Reset completo",        // HK_HARD_RESET
-#if PICO_RP2040
-    "Resetear RP2040",       // HK_REBOOT
-#else
     "Resetear RP2350",       // HK_REBOOT
-#endif
     "Velocidad maxima",      // HK_MAX_SPEED
     "Pausa",                 // HK_PAUSE
     "Info hardware",         // HK_HW_INFO

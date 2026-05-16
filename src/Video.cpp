@@ -47,9 +47,7 @@ visit https://zxespectrum.speccy.org/contacto
 #include "Z80_JLS/z80.h"
 #include "Z80_JLS/z80operations.h"
 #include "psram_spi.h"
-#if !PICO_RP2040
 #include "Z80DMA.h"
-#endif
 extern "C" void graphics_set_palette(uint8_t i, uint32_t color888);
 extern "C" void vga_set_palette_entry_solid(uint8_t i, uint32_t color888);
 extern "C" void graphics_set_buffer(uint8_t* buffer, uint16_t width, uint16_t height);
@@ -143,15 +141,12 @@ static bool brdPairWrite = true;   // true: uint32_t pair writes, false: uint16_
 static void Select_Update_Border(); // forward declaration
 
 // Timex SCLD video modes
-#if !PICO_RP2040
 uint8_t VIDEO::timex_port_ff = 0;
 uint8_t VIDEO::timex_mode = 0;
 uint8_t VIDEO::timex_hires_ink = 0;
 
-#endif
 
 // ULA+
-#if !PICO_RP2040
 bool VIDEO::ulaplus_enabled = false;
 uint8_t VIDEO::ulaplus_reg = 0;
 // Default palette: standard Spectrum colors in G3R3B2 format
@@ -175,7 +170,6 @@ static const uint8_t ulaplus_default_palette[64] = {
 uint8_t VIDEO::ulaplus_palette[64];
 bool VIDEO::ulaplus_palette_dirty = false;
 // AluBytesUlaPlus moved to flash — see roms/AluBytesUlaPlus.c
-#endif
 
 #ifdef DIRTY_LINES
 uint8_t VIDEO::dirty_lines[SPEC_H];
@@ -203,10 +197,8 @@ static unsigned int curline;
 static unsigned int bmpOffset;  // offset for bitmap in graphic memory
 static unsigned int attOffset;  // offset for attrib in graphic memory
 
-#if !PICO_RP2040
 // Per-scanline DMA attr shadow: non-null when DMA wrote attrs for current scanline
 static const uint8_t* dma_attr_override = nullptr;
-#endif
 
 static const uint8_t wait_st[128] = {
     6, 5, 4, 3, 2, 1, 0, 0, 6, 5, 4, 3, 2, 1, 0, 0,
@@ -389,11 +381,7 @@ static const char* builtin_palette_names[] = {
 };
 
 // Custom palettes from /palette.nvs
-#if PICO_RP2040
-#define MAX_CUSTOM_PALETTES 4
-#else
 #define MAX_CUSTOM_PALETTES 11
-#endif
 static PaletteDef custom_palette_defs[MAX_CUSTOM_PALETTES];
 static char custom_palette_names[MAX_CUSTOM_PALETTES][13]; // 12 chars + null
 static uint8_t custom_palette_count = 0;
@@ -594,9 +582,7 @@ static void initDefaultPalette() {
     buildSpectrumRGB(builtin_palette_defs[0], spectrum_rgb888);
 }
 
-#if !PICO_RP2040
 void initGigascreenBlendLUT();
-#endif
 
 // Apply color matrix transform to an RGB888 color
 static inline uint32_t matrixTransform(uint32_t rgb, const uint16_t *m) {
@@ -645,7 +631,6 @@ static inline uint32_t dither_neighbour(uint32_t rgb) {
     return (R << 16) | (G << 8) | B;
 }
 
-#if !PICO_RP2040
 // Apply ULA+ palette entry i (and Bayer-dither neighbour at i|0x40 for HDMI)
 static inline void applyUlaPlusPalette(int i) {
     uint32_t base = paletteTransform(grb_to_rgb888(VIDEO::ulaplus_palette[i]));
@@ -718,7 +703,6 @@ void VIDEO::ulaPlusDisable() {
     brdChange = true;
 }
 
-#endif
 
 // Apply palette: rebuild spectrum_rgb888 from current palette's brightness levels,
 // then apply color matrix to all palette entries.
@@ -746,10 +730,8 @@ void VIDEO::applyPalette() {
     Debug::log2SD("applyPalette: done, 240+16+1 entries written");
 
     // Re-apply GigaScreen blend palette if active
-#if !PICO_RP2040
     if (Config::gigascreen_enabled)
         initGigascreenBlendLUT();
-#endif
 }
 
 // Fill 256-entry BMP palette (1024 bytes, BGRA format) matching current VGA palette.
@@ -788,7 +770,6 @@ void VIDEO::getBmpPalette(uint8_t* out) {
         out[16 * 4 + 2] = (c >> 16) & 0xFF;
         out[16 * 4 + 3] = 0;
     }
-#if !PICO_RP2040
     // ULA+ palette override (indices 0-63)
     if (ulaplus_enabled) {
         for (int i = 0; i < 64; i++) {
@@ -799,7 +780,6 @@ void VIDEO::getBmpPalette(uint8_t* out) {
             out[i * 4 + 3] = 0;
         }
     }
-#endif
 }
 
 const int redPins[] = {RED_PINS_6B};
@@ -819,7 +799,6 @@ void VIDEO::vgataskinit(void *unused) {
 
 ///TaskHandle_t VIDEO::videoTaskHandle;
 
-#if !PICO_RP2040
 // Shared framebuffer data block — allocated once at boot for max resolution (360x288).
 // Both main FB and prevFB (Gigascreen) live in the same contiguous block.
 // changeMode() reconfigures pointer arrays without any alloc/free.
@@ -852,7 +831,6 @@ static void setupSharedFBPointers(Graphics<unsigned char> &vga, int lines, int s
     vga.frameBuffer = (unsigned char **)sharedFB_arr1;
     vga.prevFrameBuffer = (unsigned char **)sharedFB_arr2;
 }
-#endif
 
 void VIDEO::Init() {
     int Mode;
@@ -870,7 +848,6 @@ void VIDEO::Init() {
     OSD::scrH = vidmodes[Mode][vmodeproperties::vRes] / vidmodes[Mode][vmodeproperties::vDiv];
     vga.useInterrupt_flag = false;
 
-#if !PICO_RP2040
     // Allocate shared data block for main + prev framebuffers at max resolution
     // BEFORE vga.init() — while heap is still unfragmented (full MEM_REMAIN available).
     // The block is never freed; changeMode() only reconfigures pointer arrays.
@@ -894,7 +871,6 @@ void VIDEO::Init() {
         setupSharedFBPointers(vga, lines, stride);
         // frameBuffer is set — vga.init()'s allocateFrameBuffers() will skip allocation
     }
-#endif
 
     vga.init( Mode, redPins, grePins, bluPins, HSYNC_PIN, VSYNC_PIN);
 
@@ -910,14 +886,12 @@ void VIDEO::Init() {
     // Build and apply palette (brightness levels + color matrix)
     applyPalette();
 
-#if !PICO_RP2040
     if (Config::gigascreen_enabled && vga.prevFrameBuffer)
     {
         VIDEO::gigascreen_enabled = (Config::gigascreen_onoff == 1); // On=enabled, Auto=start disabled
         VIDEO::gigascreen_auto_countdown = 0;
         initGigascreenBlendLUT(); // Pre-compute blend palette entries
     }
-#endif
 }
 
 static void freeFrameBuffer(void **fb) {
@@ -943,7 +917,6 @@ void VIDEO::changeMode() {
 
     bool sameDims = (vga.frameBuffer && vga.xres == newW && vga.yres == newH);
 
-#if !PICO_RP2040
     // Shared block path: no alloc/free, just reconfigure pointers
     if (sharedFB_block) {
         if (!sameDims) {
@@ -954,17 +927,14 @@ void VIDEO::changeMode() {
             setupSharedFBPointers(vga, lines, stride);
         }
     } else
-#endif
     {
         // Non-shared fallback (RP2040 always; RP2350 only if shared alloc failed).
         // prevFrameBuffer is RP2350-only (Gigascreen) — guard the cleanup.
-#if !PICO_RP2040
         if (vga.prevFrameBuffer) {
             auto oldPrev = vga.prevFrameBuffer;
             vga.prevFrameBuffer = nullptr;
             freeFrameBuffer((void**)oldPrev);
         }
-#endif
         // Only null FB when dims change (alloc step below will rebuild it).
         // If sameDims, keep current FB to avoid driver reading NULL.
         if (!sameDims) {
@@ -1023,9 +993,7 @@ void VIDEO::changeMode() {
     }
 
     // 4. Allocate framebuffer (non-shared path only)
-#if !PICO_RP2040
     if (!sharedFB_block) {
-#endif
         if (sameDims) {
             // frameBuffer already nulled above for non-shared; won't reach here for shared
         } else {
@@ -1035,9 +1003,7 @@ void VIDEO::changeMode() {
             vga.frameBuffer = vga.allocateFrameBuffer();
             SaveRect.clear();
         }
-#if !PICO_RP2040
     }
-#endif
 
     // 5. Recalculate border timing + precalc tables (preserve border color)
     uint8_t savedBorderColor = borderColor;
@@ -1052,7 +1018,6 @@ void VIDEO::changeMode() {
         memset(vga.frameBuffer[0], zxColor(borderColor, 0), vga.yres * stride);
     }
 
-#if !PICO_RP2040
     // 7. Gigascreen
     if (Config::gigascreen_enabled && vga.prevFrameBuffer) {
         VIDEO::gigascreen_enabled = (Config::gigascreen_onoff == 1);
@@ -1063,7 +1028,6 @@ void VIDEO::changeMode() {
             VIDEO::gigascreen_enabled = false;
         }
     }
-#endif
 }
 #endif
 
@@ -1072,7 +1036,6 @@ void VIDEO::Reset() {
     borderColor = 7;
     brd = border32[7];
 
-#if !PICO_RP2040
     // Reset Timex SCLD state
     timex_port_ff = 0;
     timex_mode = 0;
@@ -1082,7 +1045,6 @@ void VIDEO::Reset() {
     if (ulaplus_enabled) ulaPlusDisable();
     ulaplus_reg = 0;
     memcpy(ulaplus_palette, ulaplus_default_palette, 64);
-#endif
 
     is169 = Config::aspect_16_9 ? 1 : 0;
 #ifdef VGA_HDMI
@@ -1234,7 +1196,6 @@ void VIDEO::Reset() {
 extern size_t getFreeHeap(void);
 extern size_t getContiguousHeap(void);
 
-#if !PICO_RP2040
 void VIDEO::InitPrevBuffer() {
     if (!vga.prevFrameBuffer) {
         vga.prevFrameBuffer = vga.allocateFrameBuffer();
@@ -1252,7 +1213,6 @@ void VIDEO::InitPrevBuffer() {
         }
     }
 }
-#endif
 
 //  VIDEO DRAW FUNCTIONS
 IRAM_ATTR void VIDEO::MainScreen_Blank(unsigned int statestoadd, bool contended) {    
@@ -1269,7 +1229,6 @@ IRAM_ATTR void VIDEO::MainScreen_Blank(unsigned int statestoadd, bool contended)
         coldraw_cnt = 0;
 
         curline = linedraw_cnt - lin_end;
-#if !PICO_RP2040
         if (Config::timex_video && VIDEO::timex_mode != 0) {
             switch (VIDEO::timex_mode) {
                 case 1: // Second screen
@@ -1290,7 +1249,6 @@ IRAM_ATTR void VIDEO::MainScreen_Blank(unsigned int statestoadd, bool contended)
                     break;
             }
         } else
-#endif
         {
             bmpOffset = offBmp[curline];
             attOffset = offAtt[curline];
@@ -1301,13 +1259,11 @@ IRAM_ATTR void VIDEO::MainScreen_Blank(unsigned int statestoadd, bool contended)
         // dirty_lines[curline] = 1;
         #endif // DIRTY_LINES
 
-#if !PICO_RP2040
         // DMA per-scanline attr shadow: use snapshot if DMA wrote attrs for this scanline
         if (Config::dma_mode && Z80DMA::dma_attr_valid[curline])
             dma_attr_override = &Z80DMA::dma_attr_shadow[curline * 32];
         else
             dma_attr_override = nullptr;
-#endif
 
         Draw = linedraw_cnt >= 176 && linedraw_cnt <= 191 ? Draw_OSD169 : MainScreen;
         Draw_Opcode = MainScreen_Opcode;
@@ -1336,7 +1292,6 @@ IRAM_ATTR void VIDEO::MainScreen_Blank_Snow(unsigned int statestoadd, bool conte
         coldraw_cnt = 0;
 
         curline = linedraw_cnt - lin_end;
-#if !PICO_RP2040
         if (Config::timex_video && VIDEO::timex_mode != 0) {
             switch (VIDEO::timex_mode) {
                 case 1:
@@ -1357,7 +1312,6 @@ IRAM_ATTR void VIDEO::MainScreen_Blank_Snow(unsigned int statestoadd, bool conte
                     break;
             }
         } else
-#endif
         {
             bmpOffset = offBmp[curline];
             attOffset = offAtt[curline];
@@ -1429,7 +1383,6 @@ IRAM_ATTR void VIDEO::MainScreen_Blank_Snow_Opcode(bool contended) {
 
 #ifndef DIRTY_LINES
 
-#if !PICO_RP2040
 // GigaScreen blend LUT: maps (prev_palette_idx, cur_palette_idx) → blended palette_idx
 // Supports standard 16 Spectrum colors (indices 0-15)
 // Blended colors stored in palette slots 17-239
@@ -1505,12 +1458,6 @@ inline uint32_t blendPixels32_packed(uint32_t cur, uint16_t prev16) {
     uint8_t r3 = ((c3 & 0x0F) == p3) ? c3 : gigsBlendLUT[p3 * 16 + (c3 & 0x0F)];
     return r0 | (r1 << 8) | (r2 << 16) | (r3 << 24);
 }
-#else
-// RP2040: gigascreen_enabled is always false, but compiler still needs the symbol
-inline uint32_t blendPixels32(uint32_t cur, uint32_t) { return cur; }
-inline uint16_t packPixels32(uint32_t) { return 0; }
-inline uint32_t blendPixels32_packed(uint32_t cur, uint16_t) { return cur; }
-#endif // !PICO_RP2040
 
 // ----------------------------------------------------------------------------------
 // Fast video emulation with no ULA cycle emulation and no snow effect support
@@ -1537,7 +1484,6 @@ IRAM_ATTR void VIDEO::MainScreen(unsigned int statestoadd, bool contended) {
         loopCount -= coldraw_cnt - 32;
     }
 
-#if !PICO_RP2040
     if (Config::timex_video && VIDEO::timex_mode == 6) {
         // Hi-res mode 6 (512->256): real SCLD alternates byte-columns from
         // screen0 and screen1 at same address, 64 cols x 8 bits = 512 pixels.
@@ -1550,15 +1496,10 @@ IRAM_ATTR void VIDEO::MainScreen(unsigned int statestoadd, bool contended) {
             *lineptr32++ = AluByte[combined & 0xF][hires_att];
         }
     } else
-#endif
     if (VIDEO::gigascreen_enabled) {
         for (; loopCount--; ) {
-#if !PICO_RP2040
             uint8_t att = dma_attr_override ? dma_attr_override[attOffset & 0x1F] : grmem[attOffset];
             attOffset++;
-#else
-            uint8_t att = grmem[attOffset++];
-#endif
             uint8_t bmp = grmem[bmpOffset++] ^ (-((att & flashing) >> 7));
             uint32_t newPixel1 = AluByte[bmp >> 4][att];
             uint32_t newPixel2 = AluByte[bmp & 0xF][att];
@@ -1573,12 +1514,8 @@ IRAM_ATTR void VIDEO::MainScreen(unsigned int statestoadd, bool contended) {
         }
     } else {
         for (; loopCount--; ) {
-#if !PICO_RP2040
             uint8_t att = dma_attr_override ? dma_attr_override[attOffset & 0x1F] : grmem[attOffset];
             attOffset++;
-#else
-            uint8_t att = grmem[attOffset++];
-#endif
             uint8_t bmp = grmem[bmpOffset++] ^ (-((att & flashing) >> 7));
             *lineptr32++ = AluByte[bmp >> 4][att];
             *lineptr32++ = AluByte[bmp & 0xF][att];
@@ -1895,7 +1832,6 @@ IRAM_ATTR void VIDEO::EndFrame() {
 
     tstateDraw = tStatesScreen;
 
-#if !PICO_RP2040
     // Clear DMA attr shadow and charrow write counters for next frame
     if (Config::dma_mode)
         Z80DMA::resetAttrShadow();
@@ -1905,7 +1841,6 @@ IRAM_ATTR void VIDEO::EndFrame() {
     // for the entire next frame (prevents top-of-screen palette tearing)
     if (ulaplus_enabled)
         ulaPlusFlushPalette();
-#endif
 
     static uint8_t skipCnt = 0;
     static bool wasMaxSpeed = false;
@@ -1922,9 +1857,7 @@ IRAM_ATTR void VIDEO::EndFrame() {
         Draw = VIDEO::snow_toggle ? &Blank_Snow : &Blank;
         Draw_Opcode = VIDEO::snow_toggle ? &Blank_Snow_Opcode : &Blank_Opcode;
     } else if (VIDEO::snow_toggle
-#if !PICO_RP2040
         && !(Config::timex_video && VIDEO::timex_mode != 0)
-#endif
     ) {
         Draw = &MainScreen_Blank_Snow;
         Draw_Opcode = &MainScreen_Blank_Snow_Opcode;
@@ -1956,7 +1889,6 @@ IRAM_ATTR void VIDEO::EndFrame() {
     lastBrdTstate = tStatesBorder;
     brdChange = false;
 
-#if !PICO_RP2040
     if (Config::gigascreen_onoff == 2) { // Auto mode
         if (gigascreen_auto_countdown > 0) {
             gigascreen_auto_countdown--;
@@ -1971,7 +1903,6 @@ IRAM_ATTR void VIDEO::EndFrame() {
             if (gigascreen_enabled) gigascreen_enabled = false;
         }
     }
-#endif
 
     framecnt++;
 }

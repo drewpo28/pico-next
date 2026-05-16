@@ -4,6 +4,7 @@
 // See nextreg.h for module overview.
 
 #include "nextreg.h"
+#include "mmu.h"
 
 namespace NextReg {
 
@@ -39,11 +40,17 @@ uint8_t read(uint8_t reg) {
 }
 
 void write(uint8_t reg, uint8_t value) {
-    // Most registers are plain storage at this stage; side-effecting
-    // registers (MMU $50-$57, palette $40-$44, CPU speed $07, reset $02,
-    // ULA control $68, Alt ROM $8C, ...) get their handlers wired in by
-    // the modules that own them in subsequent commits.
     regs[reg] = value;
+
+    // MMU bank slots $50-$57 — update NextMMU pointer cache so subsequent
+    // Z80 fetches/reads/writes see the new mapping immediately.
+    if (reg >= 0x50 && reg <= 0x57) {
+        NextMMU::set_slot(reg - 0x50, value);
+        return;
+    }
+
+    // Palette $40-$44, CPU speed $07, reset $02, ULA control $68, Alt ROM
+    // $8C, ... wire in as their respective modules land.
 }
 
 void writeSelect(uint8_t reg) {

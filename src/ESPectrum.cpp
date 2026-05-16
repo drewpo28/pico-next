@@ -65,6 +65,7 @@ visit https://zxespectrum.speccy.org/contacto
 #include "Z80DMA.h"
 #include "next/nextreg.h"
 #include "next/psram_ram.h"
+#include "next/mmu.h"
 
 using namespace std;
 
@@ -745,6 +746,10 @@ void ESPectrum::setup() {
         NextReg::enabled = false;
         Config::arch = "128K";
     }
+    if (NextReg::enabled) {
+        NextMMU::init();   // one-time: fill ROM placeholder with 0xFF
+        NextMMU::reset();  // seed slot pointers to power-on defaults
+    }
 
   if (Config::arch == "48K") {
     samplesPerFrame = ESP_AUDIO_SAMPLES_48;
@@ -916,6 +921,10 @@ void ESPectrum::reset(uint8_t romInUse) {
         Debug::log("Next: NextRAM init failed, falling back to 128K");
         NextReg::enabled = false;
         Config::arch = "128K";
+    }
+    if (NextReg::enabled) {
+        // CPU reset (F11) must not wipe rom_image[]; only re-seed slots.
+        NextMMU::reset();
     }
 
   // Set samples per frame and AY_emu flag depending on arch

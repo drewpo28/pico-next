@@ -45,6 +45,8 @@ visit https://zxespectrum.speccy.org/contacto
 #include "Debug.h"
 #include "Z80DMA.h"
 #include "DivMMC.h"
+#include "next/nextreg.h"
+#include "next/mmu.h"
 
 // Place hot CPU functions in SRAM instead of XIP flash
 #undef IRAM_ATTR
@@ -232,6 +234,7 @@ IRAM_ATTR void CPU::FlushOnHalt() {
 // Read byte from RAM
 IRAM_ATTR uint8_t Z80Ops::peek8(uint16_t address) {
     VIDEO::Draw(3, MemESP::ramContended[address >> 14]);
+    if (NextReg::enabled) return NextMMU::readbyte(address);
     return MemESP::readbyte(address);
 }
 
@@ -246,6 +249,7 @@ IRAM_ATTR uint8_t Z80Ops::fetchOpcode() {
 #endif
     uint8_t pg = pc >> 14;
     VIDEO::Draw_Opcode(MemESP::ramContended[pg]);
+    if (NextReg::enabled) return NextMMU::readbyte(pc);
     if (DivMMC::enabled) {
         DivMMC::preOpcFetch(pc);
         pg = pc >> 14; // re-read in case instant map changed it
@@ -334,6 +338,7 @@ IRAM_ATTR uint8_t Z80Ops::fetchOpcode() {
 // Write byte to RAM
 IRAM_ATTR void Z80Ops::poke8(uint16_t address, uint8_t value) {
     VIDEO::Draw(3, MemESP::ramContended[address >> 14]);
+    if (NextReg::enabled) { NextMMU::writebyte(address, value); return; }
     MemESP::writebyte(address, value);
 }
 
@@ -341,6 +346,20 @@ IRAM_ATTR void Z80Ops::poke8(uint16_t address, uint8_t value) {
 IRAM_ATTR uint16_t Z80Ops::peek16(uint16_t address) {
 
     uint8_t page = address >> 14;
+
+    // Next-mode: defer to the 8K MMU via peek8 so each byte routes through
+    // its own slot pointer (an 8K page boundary inside a 16K legacy page
+    // can map to a different physical Next page).
+    if (NextReg::enabled) {
+        if (MemESP::ramContended[page]) {
+            VIDEO::Draw(3, true);
+            VIDEO::Draw(3, true);
+        } else
+            VIDEO::Draw(6, false);
+        uint8_t lsb = NextMMU::readbyte(address);
+        uint8_t msb = NextMMU::readbyte(address + 1);
+        return (msb << 8) | lsb;
+    }
 
     if (page == ((address + 1) >> 14)) {    // Check if address is between two different pages
 
@@ -366,6 +385,18 @@ IRAM_ATTR uint16_t Z80Ops::peek16(uint16_t address) {
 IRAM_ATTR void Z80Ops::poke16(uint16_t address, RegisterPair word) {
     uint8_t page = address >> 14;
     uint16_t page_addr = address & 0x3fff;
+
+    // Next-mode: defer to the 8K MMU via writebyte for each byte.
+    if (NextReg::enabled) {
+        if (MemESP::ramContended[page]) {
+            VIDEO::Draw(3, true);
+            VIDEO::Draw(3, true);
+        } else
+            VIDEO::Draw(6, false);
+        NextMMU::writebyte(address, word.byte8.lo);
+        NextMMU::writebyte(address + 1, word.byte8.hi);
+        return;
+    }
 
     if (page_addr < 0x3fff) {    // Check if address is between two different pages
         if (MemESP::ramContended[page]) {

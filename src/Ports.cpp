@@ -52,6 +52,7 @@ visit https://zxespectrum.speccy.org/contacto
 
 #include "Z80DMA.h"
 #include "DivMMC.h"
+#include "next/nextreg.h"
 #include "hardware/gpio.h"
 #include "sdcard.h"
 
@@ -207,6 +208,17 @@ IRAM_ATTR uint8_t Ports::input(uint16_t address) {
     if (Config::dma_mode && (address & 0xFF) == 0x6B) {
       ioContentionLate(MemESP::ramContended[rambank]);
       return Z80DMA::readPort();
+    }
+    // NextReg select ($243B) / data ($253B) — full 16-bit decode.
+    if (NextReg::enabled) {
+      if (address == 0x243B) {
+        ioContentionLate(MemESP::ramContended[rambank]);
+        return NextReg::readSelect();
+      }
+      if (address == 0x253B) {
+        ioContentionLate(MemESP::ramContended[rambank]);
+        return NextReg::readData();
+      }
     }
     // The default port value is 0xFF.
     data = 0xff;
@@ -454,6 +466,19 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
       Z80DMA::writePort(data);
       ioContentionLate(MemESP::ramContended[rambank]);
       return;
+    }
+    // NextReg select ($243B) / data ($253B) — full 16-bit decode.
+    if (NextReg::enabled) {
+      if (address == 0x243B) {
+        NextReg::writeSelect(data);
+        ioContentionLate(MemESP::ramContended[rambank]);
+        return;
+      }
+      if (address == 0x253B) {
+        NextReg::writeData(data);
+        ioContentionLate(MemESP::ramContended[rambank]);
+        return;
+      }
     }
     // Timex SCLD video mode register (port 0x00FF, bit 8 clear)
     // Skip when TR-DOS is active — port 0xFF is the Beta-128 system register

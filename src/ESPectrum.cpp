@@ -63,6 +63,7 @@ visit https://zxespectrum.speccy.org/contacto
 #include "Debug.h"
 #include "DivMMC.h"
 #include "Z80DMA.h"
+#include "next/nextreg.h"
 
 using namespace std;
 
@@ -733,6 +734,9 @@ void ESPectrum::setup() {
     AY_emu = Config::AY48;
     if (Config::dma_mode) Z80DMA::reset();
 
+    NextReg::enabled = (Config::arch == "Next");
+    NextReg::reset();
+
   if (Config::arch == "48K") {
     samplesPerFrame = ESP_AUDIO_SAMPLES_48;
     audioOverSampleDivider = ESP_AUDIO_OVERSAMPLES_DIV_48;
@@ -893,6 +897,9 @@ void ESPectrum::reset(uint8_t romInUse) {
 
   AY_emu = Config::AY48;
     if (Config::dma_mode) Z80DMA::reset();
+
+    NextReg::enabled = (Config::arch == "Next");
+    NextReg::reset();
 
   // Set samples per frame and AY_emu flag depending on arch
   if (Config::arch == "48K") {

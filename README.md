@@ -1,12 +1,29 @@
-# pico-spec
+# pico-next
 
-ESPectrum (1.2) port for Raspberry RP2040 or RP2350 SoC<br/>
+ZX Spectrum **Next** emulator port for RP2350 + PSRAM boards.
 
-In progress...<br/>
-<br/>
-[Original repo](https://github.com/EremusOne/ESPectrum)
+**Status: very early bootstrap.** Code is forked from [pico-spec](https://github.com/DnCraptor/pico-spec) (ESPectrum port to RP2040/RP2350) and is being extended to support the Spectrum Next architecture: Z80N CPU, 8K MMU paging, NextReg I/O system, Layer 2 / Tilemap / Sprites, Copper, zxnDMA, turbosound + DACs, and NextZXOS distro loaded from SD card.
 
-![ESPectrum](https://zxespectrum.speccy.org/wp-content/uploads/2023/05/ESPectrum-logo-v02-2.png)
+The current build still produces the legacy pico-spec emulator (classic Spectrum 48K/128K/Pentagon). Next-specific features land incrementally — see [PLAN](docs/PLAN.md) for the roadmap.
+
+Specification: [SpecNext Wiki](https://wiki.specnext.dev/Main_Page) · Upstream: [DnCraptor/pico-spec](https://github.com/DnCraptor/pico-spec) · Original: [ESPectrum](https://github.com/EremusOne/ESPectrum)
+
+## Target hardware
+
+Spectrum Next has up to 2 MB RAM, which exceeds the SRAM of any Pico variant. **PSRAM is required.** Supported boards (planned):
+
+- Pimoroni Pico Plus 2 (RP2350B, 8 MB PSRAM, 16 MB flash) — primary target
+- Adafruit Feather RP2350 HSTX (8 MB PSRAM) — secondary target (HDMI via HSTX)
+
+The existing pico-spec boards (Murmulator, Olimex, Waveshare PiZero, Pico DV) remain buildable for the **classic Spectrum compatibility mode** but cannot run full Spectrum Next emulation.
+
+---
+
+## Legacy pico-spec documentation (Spectrum compatibility mode)
+
+The rest of this README is inherited from pico-spec and describes the classic-Spectrum emulator that pico-next is built upon. It will be reorganised as Next-specific features mature.
+
+---
 
 This is an emulator of the Sinclair ZX Spectrum compatible computers running on RP2040 or RP2350 SoC powered boards.
 

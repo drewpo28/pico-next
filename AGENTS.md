@@ -1,4 +1,12 @@
-# pico-spec — AI Agent Context
+# pico-next — AI Agent Context
+
+`pico-next` is a port of [pico-spec](https://github.com/DnCraptor/pico-spec) (ESPectrum) targeting the **ZX Spectrum Next** architecture on RP2350 + PSRAM boards. Spec: [SpecNext Wiki](https://wiki.specnext.dev/Main_Page). Roadmap: [docs/PLAN.md](docs/PLAN.md).
+
+The base codebase (described below) is the pico-spec classic-Spectrum emulator (48K/128K/Pentagon/Byte/ALF, cycle-accurate Z80). Spectrum Next features (Z80N, 8K MMU, NextReg, Layer 2/Tilemap/Sprites, Copper, zxnDMA, turbosound+DACs, NextZXOS) land incrementally under `src/next/` behind a `PICO_NEXT_FEATURES` build flag.
+
+Development branch: **`claude/pico-next-cleanup-JtWGm`** — Next-related changes go here, `main` is untouched until merge.
+
+---
 
 ZX Spectrum emulator for Raspberry Pi Pico (RP2040 / RP2350), ported from [ESPectrum](https://github.com/EremusOne/ESPectrum).
 Emulates ZX Spectrum 48K, 128K, Pentagon 128/512/1024K, Byte computer, and ALF TV Game with 100% cycle-accurate Z80 CPU.

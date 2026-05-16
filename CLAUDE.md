@@ -1,4 +1,14 @@
-# pico-spec Project Memory
+# pico-next Project Memory
+
+This repository is `pico-next` — an in-progress port of the [pico-spec](https://github.com/DnCraptor/pico-spec) ESPectrum emulator to the **ZX Spectrum Next** architecture, targeting RP2350 boards with PSRAM. Spec: [SpecNext Wiki](https://wiki.specnext.dev/Main_Page). Roadmap: [docs/PLAN.md](docs/PLAN.md).
+
+Strategy (confirmed with user): preserve the pico-spec source structure, add Next-specific modules under `src/next/`. Existing modules (`Z80_JLS`, `MemESP`, `Video`, `AySound`, `Ports`, etc.) are extended with Next features behind a `PICO_NEXT_FEATURES` build flag. Classic Spectrum 48K/128K/Pentagon compatibility mode is preserved.
+
+Development branch: **`claude/pico-next-cleanup-JtWGm`** — all Next-related work is committed here, not on `main`.
+
+Notes below are inherited from pico-spec and describe the classic-Spectrum subsystems that pico-next is built upon.
+
+---
 
 ## SAA1099 Emulation Key Findings
 

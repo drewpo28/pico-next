@@ -64,7 +64,7 @@ message(STATUS "PICO_BOARD: ${PICO_BOARD}")
 
 include(pico_sdk_import.cmake)
 
-SET(PROJECT_NAME p2-spec)
+SET(PROJECT_NAME pico-next)
 set(BOARD_CHIP_TAG p2)
 set(FLASH_SIZE 4096)
 

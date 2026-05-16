@@ -29,9 +29,10 @@
 #include "Tape.h"
 #include "Config.h"
 #include "FileUtils.h"
+#include "Debug.h"
+#include "next/nextreg.h"
 #include "OSDMain.h"
 #include "messages.h"
-#include "Debug.h"
 #include "ESPectrum.h"
 #include "wd1793.h"
 #include "DivMMC.h"
@@ -6402,6 +6403,47 @@ void Z80::decodeED(void) {
             }
             break;
         }
+        // -----------------------------------------------------------------
+        // Z80N extended instruction set (Spectrum Next only).
+        // Ref: https://wiki.specnext.dev/Extended_Z80_instruction_set
+        //
+        // Only the opcodes that NextZXOS hits on the path to its boot splash
+        // are implemented here; everything else falls through to the
+        // "unknown Z80N opcode" trap below so we can surface what real
+        // software uses and add it incrementally. Flags are intentionally
+        // not touched — Z80N defines them as preserved for these ops.
+        // -----------------------------------------------------------------
+        case 0x23: { /* SWAPNIB: A = (A << 4) | (A >> 4) */
+            regA = (uint8_t)((regA << 4) | (regA >> 4));
+            break;
+        }
+        case 0x30: { /* MUL DE: DE = D * E (unsigned 16-bit result) */
+            REG_DE = (uint16_t)((uint16_t)REG_D * (uint16_t)REG_E);
+            break;
+        }
+        case 0x31: { /* ADD HL,A: HL += A (A zero-extended) */
+            REG_HL = (uint16_t)(REG_HL + regA);
+            break;
+        }
+        case 0x32: { /* ADD DE,A */
+            REG_DE = (uint16_t)(REG_DE + regA);
+            break;
+        }
+        case 0x33: { /* ADD BC,A */
+            REG_BC = (uint16_t)(REG_BC + regA);
+            break;
+        }
+        case 0x91: { /* NEXTREG reg, val — two immediate bytes */
+            uint8_t reg = Z80Ops::peek8(REG_PC); REG_PC++;
+            uint8_t val = Z80Ops::peek8(REG_PC); REG_PC++;
+            NextReg::write(reg, val);
+            break;
+        }
+        case 0x92: { /* NEXTREG reg, A — one immediate byte, value from A */
+            uint8_t reg = Z80Ops::peek8(REG_PC); REG_PC++;
+            NextReg::write(reg, regA);
+            break;
+        }
         // case 0xDD:
             // prefixOpcode = 0xDD;
             // break;
@@ -6411,8 +6453,27 @@ void Z80::decodeED(void) {
         // case 0xFD:
             // prefixOpcode = 0xFD;
             // break;
-        // default:
-        //     break;
+        default:
+            // Unknown ED-prefix opcode. On classic Spectrum machines a real
+            // Z80 silently NOPs undefined ED encodings, so stay quiet there.
+            // On Spectrum Next many of these are Z80N — log once per opcode
+            // so we can spot what NextZXOS actually issues without spamming
+            // the UART in tight loops. PC has already been advanced past the
+            // opcode byte; the report below shows the location of the prefix
+            // that started this instruction (REG_PC-2).
+            if (NextReg::enabled) {
+                static uint32_t seen_mask[8] = {0,0,0,0,0,0,0,0}; // 256 bits
+                uint32_t& w = seen_mask[opCode >> 5];
+                uint32_t b = 1u << (opCode & 0x1F);
+                if (!(w & b)) {
+                    w |= b;
+                    Debug::log("Z80N: unknown ED %02X at PC=%04X (treated as NOP)"
+                               " A=%02X BC=%04X DE=%04X HL=%04X SP=%04X",
+                               opCode, (uint16_t)(REG_PC - 2),
+                               regA, REG_BC, REG_DE, REG_HL, REG_SP);
+                }
+            }
+            break;
     }
 }
 

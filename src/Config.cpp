@@ -139,6 +139,14 @@ void Config::initHotkeys() {
 void Config::requestMachine(const string& newArch, const string& newRomSet)
 {
     arch = newArch;
+    if (arch == "Next") {
+        // Spectrum Next: ROM lives in NextMMU::rom_image[] loaded from the
+        // SD card by NextROMLoader; the legacy MemESP::rom[] slots stay
+        // untouched. romSet is informational only — kept so save/load
+        // round-trips don't lose the user's preference.
+        if (newRomSet == "") romSet = "Next"; else romSet = newRomSet;
+        return;
+    }
     if (arch == "48K") {
         if (newRomSet=="") romSet = "48K"; else romSet = newRomSet;
         if (newRomSet=="") romSet48 = "48K"; else romSet48 = newRomSet;

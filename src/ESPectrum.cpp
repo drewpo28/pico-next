@@ -66,6 +66,7 @@ visit https://zxespectrum.speccy.org/contacto
 #include "next/nextreg.h"
 #include "next/psram_ram.h"
 #include "next/mmu.h"
+#include "next/rom_loader.h"
 
 using namespace std;
 
@@ -747,8 +748,9 @@ void ESPectrum::setup() {
         Config::arch = "128K";
     }
     if (NextReg::enabled) {
-        NextMMU::init();   // one-time: fill ROM placeholder with 0xFF
-        NextMMU::reset();  // seed slot pointers to power-on defaults
+        NextMMU::init();           // one-time: fill ROM placeholder with 0xFF
+        NextROMLoader::load();     // try to overlay enNextZX.rom from SD
+        NextMMU::reset();          // seed slot pointers to power-on defaults
     }
 
   if (Config::arch == "48K") {

@@ -2614,9 +2614,10 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                                 menu_curopt = 1;
                                 menu_level = 2;
                             }
-                        } else if (arch_num == 3) { // Spectrum Next (stub — pending)
-                            // Placeholder for upcoming Spectrum Next emulator.
-                            // No handler yet — just keep current machine.
+                        } else if (arch_num == 3) { // Spectrum Next
+                            arch = "Next";
+                            romset = "Next";
+                            opt2 = 1; // commit selection — no sub-menu yet
                             menu_curopt = arch_num;
                             menu_saverect = false;
                         }

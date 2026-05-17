@@ -322,6 +322,12 @@ IRAM_ATTR uint8_t Ports::input(uint16_t address) {
         if (!MemESP::pagingLock) {
           MemESP::pagingLock = bitRead(data, 5);
           uint32_t page = (data & 0x7);
+          // Pentagon extended paging via \$8E bit 3 — see the matching
+          // \$7FFD write path below for the encoding.
+          if (NextReg::enabled && (NextReg::regs[0x8E] & 0x08)) {
+            page |= (uint32_t)((data >> 7) & 0x01) << 3;
+            page |= (uint32_t)((data >> 6) & 0x01) << 4;
+          }
           if (MEM_PG_CNT > 64) {
             page += portAFF7 * extendedZxRamPages();
             uint32_t pages =
@@ -635,6 +641,16 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
       uint8_t D5 = bitRead(data, 5);
       MemESP::pagingLock = D5;
       uint32_t page = (data & 0x7);
+      // NextReg \$8E bit 3 enables Pentagon-style extended paging:
+      // bank index gains bit 3 from \$7FFD bit 7 and bit 4 from \$7FFD
+      // bit 6, giving banks 0..31 instead of 0..7 — enough for the 512K
+      // and 1024K Pentagon RAM expansions emulated on Spectrum Next.
+      // Without this in Pentagon-mode software the upper banks alias
+      // back into the low 128K.
+      if (NextReg::enabled && (NextReg::regs[0x8E] & 0x08)) {
+        page |= (uint32_t)((data >> 7) & 0x01) << 3;
+        page |= (uint32_t)((data >> 6) & 0x01) << 4;
+      }
       if (MEM_PG_CNT > 64) {
         uint32_t pPlus = page + portAFF7 * extendedZxRamPages();
         uint32_t pages = ram_pages + butter_pages + psram_pages + swap_pages;

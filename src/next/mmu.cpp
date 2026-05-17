@@ -21,21 +21,28 @@ uint8_t  rom_bank = 0;
 
 // Pick the right 8 KB ROM window for slot N (0..1) given the current
 // rom_bank and \$8C state. Priority order:
-//   1. Alt ROM (NextReg \$8C bit 7 set, bit 6 clear)
-//   2. Main ROM with rom_bank-derived 16 KB window
-// Lock bits \$8C bits 5/4 (pin ROM1 / ROM0) and the Alt ROM "writes only"
-// bit (bit 6) are still TODO — until then bit 6 means "reads stay on main
-// ROM" and locks are ignored.
+//   1. Alt ROM with lock-bit pin (NextReg \$8C bits 4/5)
+//   2. Alt ROM with rom_bank-derived window (NextReg \$8C bit 7)
+//   3. Main ROM with rom_bank-derived 16 KB window
+// \$8C bit 6 ("Alt ROM only on writes") means reads still see main ROM —
+// pico-next is read-mostly here so writes to ROM slots are dropped by
+// slot_ro either way.
 static inline uint8_t* rom_for_slot(int slot) {
     if (slot < 2) {
         const uint8_t altrom = NextReg::regs[0x8C];
         const bool altrom_en         = (altrom & 0x80) != 0;
         const bool altrom_write_only = (altrom & 0x40) != 0;
+        const bool lock_rom0         = (altrom & 0x10) != 0;  // pin Alt ROM bank 0 (128K)
+        const bool lock_rom1         = (altrom & 0x20) != 0;  // pin Alt ROM bank 1 (48K)
         if (altrom_en && !altrom_write_only) {
-            // Alt ROM is 32 KB = 2 × 16 KB banks. Bit 5/4 (lock ROM1 / ROM0)
-            // would pin one of those; current behaviour picks the same
-            // 16 KB window as main ROM but capped to Alt ROM's range.
-            const uint32_t bank16 = ((uint32_t)rom_bank & 0x01) * 0x4000;
+            // Alt ROM is 32 KB = 2 × 16 KB banks. Lock bits override the
+            // rom_bank window: bit 4 forces bank 0, bit 5 forces bank 1.
+            // Both bits set is documented as "lock to bank 0" on real
+            // hardware (bit 4 wins) — match that.
+            uint32_t bank16;
+            if (lock_rom0)      bank16 = 0;
+            else if (lock_rom1) bank16 = 0x4000;
+            else                bank16 = ((uint32_t)rom_bank & 0x01) * 0x4000;
             return alt_rom_image + bank16 + (slot * SLOT_SIZE);
         }
     }
@@ -50,26 +57,59 @@ static inline uint8_t* rom_for_slot(int slot) {
     return rom_image + (slot * SLOT_SIZE);
 }
 
+// +3 special all-RAM paging table. \$1FFD bit 0 = 1 enters this mode; bits
+// 2:1 then select one of four classic 16K-bank layouts (no ROM in the
+// map). Each entry is the legacy RAM bank for that 16K slot — translate
+// to Next 8K page by `bank * 2 + low_half`.
+//   config = ($1FFD >> 1) & 3
+//   legacy_slot_index 0..3 = Z80 \$0000 / \$4000 / \$8000 / \$C000
+//   bank = special_banks[config][legacy_slot_index]
+// Ref: Spectrum +3 technical manual; mirrored on Next core 3.x.
+static const uint8_t special_banks[4][4] = {
+    {0, 1, 2, 3},
+    {4, 5, 6, 7},
+    {4, 5, 6, 3},
+    {4, 7, 6, 3},
+};
+
+static inline bool special_paging_active() {
+    return (MemESP::port_1ffd_data & 0x01) != 0;
+}
+
 void bank_update(int slot) {
     if (slot < 0 || slot >= SLOTS) return;
+
+    // Priority 1: +3 special paging mode — all-RAM, ignores NextReg
+    // \$50-\$57 and Alt ROM. Bank-per-16K-slot from the lookup table.
+    if (special_paging_active() && NextRAM::available) {
+        const uint8_t config       = (MemESP::port_1ffd_data >> 1) & 0x03;
+        const int     legacy_slot  = slot >> 1;
+        const int     legacy_half  = slot & 0x01;
+        const uint8_t bank         = special_banks[config][legacy_slot];
+        const uint32_t page        = (uint32_t)bank * 2u + (uint32_t)legacy_half;
+        slot_ptr[slot] = NextRAM::page_ptr(page);
+        slot_ro [slot] = false;
+        return;
+    }
+
     const uint8_t page = NextReg::regs[0x50 + slot];
 
-    // Priority 1: ROM page (0xFF). rom_for_slot() handles Alt ROM and
-    // rom_bank-derived window inside.
+    // Priority 2: ROM page (0xFF). rom_for_slot() handles Alt ROM, lock
+    // bits and rom_bank-derived window inside.
     if (page == PAGE_ROM) {
         slot_ptr[slot] = rom_for_slot(slot);
         slot_ro [slot] = true;
         return;
     }
 
-    // Priority 2: documented Next-RAM page 0..223.
+    // Priority 3: documented Next-RAM page 0..223.
     if (page < NextRAM::PAGE_COUNT && NextRAM::available) {
         slot_ptr[slot] = NextRAM::page_ptr(page);
         slot_ro [slot] = false;
         return;
     }
 
-    // Priority 3: unmapped fallback — point at main ROM so the bus reads
+    // Priority 4: unmapped fallback — point at main ROM so the bus reads
     // as 0xFF and the CPU loops at RST $38, exposing the misroute in the
     // UART trace instead of silently dereferencing a stale pointer.
     slot_ptr[slot] = rom_for_slot(slot);
@@ -88,10 +128,31 @@ void update_rom_bank() {
     const uint8_t low  = (MemESP::romLatch & 0x01);
     const uint8_t high = (MemESP::port_1ffd_data >> 2) & 0x01;
     const uint8_t now  = (uint8_t)(low | (high << 1));
+
+    // \$1FFD bit 0 toggles +3 all-RAM paging which affects every slot,
+    // not just 0/1. Track that separately so we can issue a full rebuild
+    // when special mode enters or leaves (or when the config bits 2/1
+    // change while in special mode).
+    static uint8_t last_1ffd = 0;
+    const uint8_t  this_1ffd = MemESP::port_1ffd_data;
+    const bool was_special   = (last_1ffd & 0x01) != 0;
+    const bool now_special   = (this_1ffd & 0x01) != 0;
+    const bool special_layout_changed =
+        was_special != now_special ||
+        (now_special && (last_1ffd & 0x06) != (this_1ffd & 0x06));
+
+    if (special_layout_changed) {
+        last_1ffd = this_1ffd;
+        rom_bank = now;
+        bank_update_all();
+        return;
+    }
+    last_1ffd = this_1ffd;
+
     if (now != rom_bank) {
         rom_bank = now;
-        // Only slot 0/1 source from main ROM with the bank offset, so the
-        // other six slots don't need a refresh.
+        // Only slot 0/1 source from main ROM with the bank offset; the
+        // other six slots don't need a refresh in the common case.
         bank_update(0);
         bank_update(1);
     }

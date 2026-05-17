@@ -5,6 +5,7 @@
 
 #include "nextreg.h"
 #include "mmu.h"
+#include "layer2.h"
 
 namespace NextReg {
 
@@ -110,6 +111,35 @@ void write(uint8_t reg, uint8_t value) {
             (uint16_t)((cur & ~0x201) | b_lsb | prio);
         palette_index++;
         return;
+    }
+
+    // -----------------------------------------------------------------
+    // Layer 2 state ($12-$18, $70-$72). Storage only — Video.cpp's
+    // composite path consumes these on the next scanline.
+    // -----------------------------------------------------------------
+    switch (reg) {
+        case 0x12: Layer2::start_page        = value; return;
+        case 0x13: Layer2::start_page_shadow = value; return;
+        case 0x14: Layer2::palette_offset    = (uint8_t)(value & 0xF0); return;
+        case 0x16: Layer2::scroll_x = (Layer2::scroll_x & 0x0100) | value; return;
+        case 0x17: Layer2::scroll_y = value; return;
+        case 0x18: Layer2::writeClip(value); return;
+        case 0x70:
+            // bits 5-4 select the mode; bits 3-0 hold the palette-offset
+            // for 320/640 modes (we mirror them into palette_offset).
+            switch ((value >> 4) & 0x03) {
+                case 0: Layer2::mode = Layer2::MODE_256x192; break;
+                case 1: Layer2::mode = Layer2::MODE_320x256; break;
+                case 2: Layer2::mode = Layer2::MODE_640x256; break;
+                default: Layer2::mode = Layer2::MODE_256x192; break;
+            }
+            return;
+        case 0x71:
+            // Bit 0 = scroll_x bit 8 (for 320/640 modes that need 9-bit X).
+            Layer2::scroll_x = (uint16_t)((Layer2::scroll_x & 0x00FF) |
+                                          ((value & 0x01) << 8));
+            return;
+        case 0x72: Layer2::scroll_y = value; return;
     }
 
     // CPU speed $07, reset $02, ULA control $68, Alt ROM $8C, ... wire in

@@ -67,6 +67,7 @@ visit https://zxespectrum.speccy.org/contacto
 #include "next/psram_ram.h"
 #include "next/mmu.h"
 #include "next/rom_loader.h"
+#include "next/layer2.h"
 
 using namespace std;
 
@@ -739,6 +740,7 @@ void ESPectrum::setup() {
 
     NextReg::enabled = (Config::arch == "Next");
     NextReg::reset();
+    Layer2::reset();
     if (NextReg::enabled && !NextRAM::init()) {
         // Without 2 MB of PSRAM we cannot host the Next RAM map. Refuse to
         // run as Next and fall back to classic 128K so the user sees
@@ -916,6 +918,7 @@ void ESPectrum::reset(uint8_t romInUse) {
 
     NextReg::enabled = (Config::arch == "Next");
     NextReg::reset();
+    Layer2::reset();
     if (NextReg::enabled && !NextRAM::init()) {
         // Without 2 MB of PSRAM we cannot host the Next RAM map. Refuse to
         // run as Next and fall back to classic 128K so the user sees

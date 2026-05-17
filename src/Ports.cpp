@@ -54,6 +54,7 @@ visit https://zxespectrum.speccy.org/contacto
 #include "DivMMC.h"
 #include "next/nextreg.h"
 #include "next/mmu.h"
+#include "next/layer2.h"
 #include "hardware/gpio.h"
 #include "sdcard.h"
 
@@ -483,6 +484,15 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
       }
       if (address == 0x253B) {
         NextReg::writeData(data);
+        ioContentionLate(MemESP::ramContended[rambank]);
+        return;
+      }
+      // Port $123B — Layer 2 access and visibility control. Bit 1 toggles
+      // the layer's on-screen visibility; other bits steer the optional
+      // CPU-side paging window (handled later when Layer 2's MMU mapping
+      // for write access lands).
+      if (address == 0x123B) {
+        Layer2::enabled = (data & 0x02) != 0;
         ioContentionLate(MemESP::ramContended[rambank]);
         return;
       }

@@ -6,6 +6,8 @@
 #include "nextreg.h"
 #include "mmu.h"
 #include "layer2.h"
+#include "../ESPectrum.h"
+#include "../CPU.h"
 
 namespace NextReg {
 
@@ -68,6 +70,22 @@ void write(uint8_t reg, uint8_t value) {
     // Z80 fetches/reads/writes see the new mapping immediately.
     if (reg >= 0x50 && reg <= 0x57) {
         NextMMU::set_slot(reg - 0x50, value);
+        return;
+    }
+
+    // NextReg $07 — programmable CPU speed (low 2 bits, 1× / 2× / 4× / 8×
+    // base of 3.5 MHz → 3.5 / 7 / 14 / 28 MHz). Maps directly to the
+    // existing ESPectrum::multiplicator that the manual Turbo hotkey
+    // also drives (statesInFrame <<= multiplicator), so software
+    // requesting 28 MHz via NEXTREG \$07,3 gets the same per-frame
+    // T-state budget Alt-F2 Turbo gives.
+    // Ref: https://wiki.specnext.dev/Turbo_Control_Register
+    if (reg == 0x07) {
+        const uint8_t mult = value & 0x03;
+        if (ESPectrum::multiplicator != mult) {
+            ESPectrum::multiplicator = mult;
+            CPU::updateStatesInFrame();
+        }
         return;
     }
 

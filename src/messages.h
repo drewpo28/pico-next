@@ -448,7 +448,6 @@ static const char *MENU_ESX_EJECT[2]     = { "Eject disk\n",     "Expulsar disco
     "Storage\t>\n"\
     "Audio\t>\n"\
     "Video\t>\n"\
-	"Machine\t>\n"\
     "Reset\t>\n"\
     "Options\t>\n"\
     "Debug\t>\n"\
@@ -461,7 +460,6 @@ static const char *MENU_ESX_EJECT[2]     = { "Eject disk\n",     "Expulsar disco
     "Almacenamiento\t>\n"\
     "Audio\t>\n"\
     "Video\t>\n"\
-    "Modelo\t>\n"\
     "Resetear\t>\n"\
     "Opciones\t>\n"\
 	"Depurar\t>\n"\
@@ -476,7 +474,6 @@ static const char *MENU_MAIN[2] = { MENU_MAIN_EN, MENU_MAIN_ES };
     "Storage\t>\n"\
     "Audio\t>\n"\
     "Video\t>\n"\
-	"Machine\t>\n"\
     "Reset\t>\n"\
     "Options\t>\n"\
     "Debug\t>\n"\
@@ -489,7 +486,6 @@ static const char *MENU_MAIN[2] = { MENU_MAIN_EN, MENU_MAIN_ES };
     "Almacenamiento\t>\n"\
     "Audio\t>\n"\
     "Video\t>\n"\
-    "Modelo\t>\n"\
     "Resetear\t>\n"\
     "Opciones\t>\n"\
     "Depurar\t>\n"\
@@ -884,38 +880,8 @@ static const char *MENU_ALUTIMING[2] = { MENU_ALUTIMING_EN, MENU_ALUTIMING_ES };
 
 static const char *MENU_ISSUE2[2] = { "48K Issue 2\n", "48K Issue 2\n"};
 
-#define MENU_ARCH_EN "Select machine\n"
-
-#define MENU_ARCH_ES "Elija modelo\n"
-
-#define MENU_ARCHS \
-    "Spectrum 48K\t>\n"\
-    "Spectrum 128K\t>\n"\
-	"Spectrum Next\t>\n"
-static const char *MENU_ARCH[2] = { MENU_ARCH_EN MENU_ARCHS, MENU_ARCH_ES MENU_ARCHS };
-
-#define MENU_ARCHS_NO_SD \
-    "Spectrum 48K\t>\n"\
-    "Spectrum 128K\t>\n"\
-	"Spectrum Next\t>\n"
-static const char *MENU_ARCH_NO_SD[2] = { MENU_ARCH_EN MENU_ARCHS_NO_SD, MENU_ARCH_ES MENU_ARCHS_NO_SD };
-
-#define MENU_ROMS48_EN "Select ROM\n"\
-	"48K\n"\
-    "Custom\n"
-#define MENU_ROMS48_ES "Elija ROM\n"\
-	"48K\n"\
-    "Custom\n"
-
-#define MENU_ROMS128_EN "Select ROM\n"\
-	"128K\n"\
-    "Custom\n"
-#define MENU_ROMS128_ES "Elija ROM\n"\
-	"128K\n"\
-    "Custom\n"
-
-static const char *MENU_ROMS48[2] = { MENU_ROMS48_EN, MENU_ROMS48_ES };
-static const char *MENU_ROMS128[2] = { MENU_ROMS128_EN, MENU_ROMS128_ES };
+// Machine-selection menus (MENU_ARCH, MENU_ROMS48/128) removed:
+// pico-next only emulates the Spectrum Next, so there's nothing to pick.
 
 #define MENU_ARCHS_PREF \
     "Spectrum 48K\t[4]\n"\

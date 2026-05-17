@@ -697,11 +697,18 @@ void ESPectrum::setup() {
 
   ///    if (Config::slog_on) showMemInfo("RAM Initialized");
 
+  // pico-next emulates only the Spectrum Next. Any other arch surviving in
+  // NVS (left over from a pico-spec install or a previous build) is
+  // upgraded to "Next" at boot; the runtime fall-back inside Next mode
+  // will downgrade to "128K" automatically if NextRAM init fails.
+  if (Config::arch != "Next") {
+    Config::arch = "Next";
+  }
+
   // Spectrum Next requires DivMMC in DivSD (raw SD) mode for NextZXOS to
   // see the filesystem — force it on at boot even if NVS-saved Config has
   // it disabled, otherwise we'd silently leave Next without SD access.
-  // Other arches keep the user's saved choice.
-  if (Config::arch == "Next" && Config::esxdos != 3) {
+  if (Config::esxdos != 3) {
     Config::esxdos = 3;
   }
 

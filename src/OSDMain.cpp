@@ -2562,106 +2562,7 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                     }
                 }
             }
-            else if (opt == 5) { // Machine
-                // ***********************************************************************************
-                // MACHINE MENU
-                // ***********************************************************************************
-                menu_saverect = true;
-                menu_curopt = 1;
-                bool ext_ram = butter_psram_size() || FileUtils::fsMount || psram_size() > 0;
-                while (1) {
-                    menu_level = 1;
-                    uint8_t arch_num = menuRun(ext_ram ? MENU_ARCH[Config::lang] : MENU_ARCH_NO_SD[Config::lang]);
-                    if (arch_num) {
-                        string arch = Config::arch;
-                        string romset = Config::romSet;
-                        uint8_t opt2 = 0;
-                        if (arch_num == 1) { // 48K
-                            menu_level = 2;
-                            menu_curopt = 1;
-                            menu_saverect = true;
-                            opt2 = menuRun(MENU_ROMS48[Config::lang]);
-                            if (opt2) {
-                                arch = "48K";
-                                if (opt2 == 1) {
-                                    romset = "48K";
-                                } else
-                                if (opt2 == 2) {
-                                    romset = "48Kcs";
-                                }
-                                menu_curopt = opt2;
-                                menu_saverect = false;
-                            } else {
-                                menu_curopt = 1;
-                                menu_level = 2;
-                            }
-                        } else if (arch_num == 2) { // 128K
-                            menu_level = 2;
-                            menu_curopt = 1;
-                            menu_saverect = true;
-                            opt2 = menuRun(MENU_ROMS128[Config::lang]);
-                            if (opt2) {
-                                arch = "128K";
-                                if (opt2 == 1) {
-                                    romset = "128K";
-                                } else
-                                if (opt2 == 2) {
-                                    romset = "128Kcs";
-                                }
-                                menu_curopt = opt2;
-                                menu_saverect = false;
-                            } else {
-                                menu_curopt = 1;
-                                menu_level = 2;
-                            }
-                        } else if (arch_num == 3) { // Spectrum Next
-                            arch = "Next";
-                            romset = "Next";
-                            opt2 = 1; // commit selection — no sub-menu yet
-                            menu_curopt = arch_num;
-                            menu_saverect = false;
-                        }
-
-                        if (opt2) {
-                            if (arch != Config::arch || romset != Config::romSet) {
-                                Config::ram_file = "none";
-                                if (romset != Config::romSet) {
-                                    if (arch == "48K") {
-                                        if (Config::pref_romSet_48 == "Last") {
-                                            Config::romSet = romset;
-                                            Config::romSet48 = romset;
-                                        }
-                                    } else if (arch == "128K") {
-                                        if (Config::pref_romSet_128 == "Last") {
-                                            Config::romSet = romset;
-                                            Config::romSet128 = romset;
-                                        }
-                                    } else {
-                                        Config::romSet = romset;
-                                    }
-                                }
-                                if (arch != Config::arch) {
-                                    if (Config::pref_arch == "Last") {
-                                        Config::arch = arch;
-                                    }
-                                }
-                                Config::save();
-                                Config::requestMachine(arch, romset);
-                            }
-
-                            Debug::led_blink();
-                            ESPectrum::reset();
-                            return;
-                        }
-                        menu_curopt = arch_num;
-                        menu_saverect = false;
-                    } else {
-                        menu_curopt = 5;
-                        break;
-                    }
-                }
-            }
-            else if (opt == 6) { // Reset
+            else if (opt == 5) { // Reset
                 // ***********************************************************************************
                 // RESET MENU
                 // ***********************************************************************************
@@ -2711,12 +2612,12 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                             esp_hard_reset();
                         }
                     } else {
-                        menu_curopt = 6;
+                        menu_curopt = 5;
                         break;
                     }
                 }
             }
-            else if (opt == 7) { // Options
+            else if (opt == 6) { // Options
                 // ***********************************************************************************
                 // OPTIONS MENU
                 // ***********************************************************************************
@@ -3356,17 +3257,17 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                                     menu_saverect = false;
                                 }
                             } else {
-                                menu_curopt = 7;
+                                menu_curopt = 6;
                                 break;
                             }
                         }
                     } else {
-                        menu_curopt = 7;
+                        menu_curopt = 6;
                         break;
                     }
                 }
             }
-            else if (opt == 8) { // Debug
+            else if (opt == 7) { // Debug
                 // DEBUG MENU
                 menu_saverect = true;
                 menu_curopt = 1;
@@ -3394,12 +3295,12 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                         Z80::triggerNMI();
                         return;
                     } else {
-                        menu_curopt = 8;
+                        menu_curopt = 7;
                         break;
                     }
                 }
             }
-            else if (opt == 9) { // Hardware
+            else if (opt == 8) { // Hardware
                 // ***********************************************************************************
                 // HARDWARE MENU
                 // ***********************************************************************************
@@ -3595,12 +3496,12 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                         }
                     }
                     else {
-                        menu_curopt = 9;
+                        menu_curopt = 8;
                         break;
                     }
                 }
             }
-            else if (opt == 10) { // ZX Keyboard — bitmap overlay
+            else if (opt == 9) { // ZX Keyboard — bitmap overlay
                 // Protect OSD area from Z80 video renderer overwrite
                 bool kbd_osd_enabled = (VIDEO::OSD != 0);
                 if (!kbd_osd_enabled) {
@@ -3652,7 +3553,7 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                 if (VIDEO::OSD) OSD::drawStats();
                 return;
             }
-            else if (opt == 11) { // Help — dynamic from hotkeys
+            else if (opt == 10) { // Help — dynamic from hotkeys
                 // Build index of visible hotkeys (no large buffer needed)
                 auto descs = Config::lang ? hkDescES : hkDescEN;
                 const int maxCols = osdMaxCols();
@@ -3745,7 +3646,7 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                 if (VIDEO::OSD) OSD::drawStats();
                 return;
             }
-            else if (opt == 12) { // About
+            else if (opt == 11) { // About
                 // About
                 // Protect OSD area from Z80 video renderer overwrite
                 bool about_osd_enabled = (VIDEO::OSD != 0);

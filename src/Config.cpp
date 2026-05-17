@@ -12,7 +12,7 @@
 #include "graphics.h"
 #include <hardware/vreg.h>
 
-string   Config::arch = "48K";
+string   Config::arch = "Next";
 string   Config::romSet = "48K";
 string   Config::romSet48 = "48K";
 string   Config::romSet128 = "128K";

@@ -8,6 +8,7 @@
 
 #include "psram_ram.h"
 #include "nextreg.h"
+#include "boot_rom.h"
 #include "../MemESP.h"
 #include "../Debug.h"
 
@@ -17,17 +18,26 @@ uint8_t* slot_ptr[SLOTS] = { nullptr };
 bool     slot_ro [SLOTS] = { false };
 uint8_t  rom_image[ROM_SIZE];
 uint8_t  alt_rom_image[ALT_ROM_SIZE];
-uint8_t  rom_bank = 0;
+uint8_t  rom_bank  = 0;
+bool     bootrom_en = true;
 
 // Pick the right 8 KB ROM window for slot N (0..1) given the current
-// rom_bank and \$8C state. Priority order:
-//   1. Alt ROM with lock-bit pin (NextReg \$8C bits 4/5)
-//   2. Alt ROM with rom_bank-derived window (NextReg \$8C bit 7)
-//   3. Main ROM with rom_bank-derived 16 KB window
+// rom_bank, bootrom_en and \$8C state. Priority order:
+//   1. Boot ROM (bootrom_en true — embedded stub, slots 0-1 only)
+//   2. Alt ROM with lock-bit pin (NextReg \$8C bits 4/5)
+//   3. Alt ROM with rom_bank-derived window (NextReg \$8C bit 7)
+//   4. Main ROM with rom_bank-derived 16 KB window
 // \$8C bit 6 ("Alt ROM only on writes") means reads still see main ROM —
 // pico-next is read-mostly here so writes to ROM slots are dropped by
 // slot_ro either way.
 static inline uint8_t* rom_for_slot(int slot) {
+    if (slot < 2 && bootrom_en) {
+        // Boot ROM occupies the same 16 KB as the main ROM bank 0 — slot
+        // 0 reads its low 8 KB, slot 1 reads its high 8 KB. After the
+        // embedded stub writes NextReg \$03 bootrom_en clears and a
+        // subsequent bank_update() returns to the normal path below.
+        return const_cast<uint8_t*>(NextBootROM::image + (slot * SLOT_SIZE));
+    }
     if (slot < 2) {
         const uint8_t altrom = NextReg::regs[0x8C];
         const bool altrom_en         = (altrom & 0x80) != 0;
@@ -203,6 +213,13 @@ void reset() {
     // against ordering issues if MemESP::romLatch hasn't been re-zeroed
     // yet when bank_update() runs.
     rom_bank = 0;
+
+    // Re-engage the Boot ROM on every reset — the embedded stub at
+    // NextBootROM::image hands off via NextReg \$03 each time, giving a
+    // deterministic power-on sequence. NextZXOS doesn't care whether
+    // this is a cold boot or an F11 reset since both go through Boot
+    // ROM first.
+    bootrom_en = true;
 
     // Mirror the defaults into NextReg $50-$57 so software-visible state
     // matches what bank_update() installs.

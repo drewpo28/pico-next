@@ -54,6 +54,13 @@ void reset();
 // \$0000-\$3FFF when slot 0/1 is ROM-mapped.
 extern uint8_t rom_bank;
 
+// Boot ROM enable. True at every machine reset; cleared the first time
+// NextReg \$03 (machine type) is written. While true, slots 0/1 source
+// from NextBootROM::image instead of the main rom_image — the embedded
+// Z80N stub there runs first and hands off to NextZXOS via its own
+// NEXTREG \$03 write.
+extern bool bootrom_en;
+
 // Recompute rom_bank from MemESP::romLatch + MemESP::port_1ffd_data and
 // re-evaluate slot 0/1 if it changed. Hook called from Ports.cpp after
 // \$7FFD and \$1FFD writes (and NextReg::write \$8E when it touches

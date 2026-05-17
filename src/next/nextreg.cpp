@@ -10,6 +10,7 @@
 #include "../CPU.h"
 #include "../MemESP.h"
 #include "../Video.h"
+#include "../Z80_JLS/z80.h"
 
 namespace NextReg {
 
@@ -72,6 +73,30 @@ void write(uint8_t reg, uint8_t value) {
     // Z80 fetches/reads/writes see the new mapping immediately.
     if (reg >= 0x50 && reg <= 0x57) {
         NextMMU::set_slot(reg - 0x50, value);
+        return;
+    }
+
+    // NextReg $03 — Machine Type / hands off from Boot ROM
+    //   bits 6-4  Hardware model identifier (Next/Pi-tweener/etc.)
+    //   bits 3-0  Personality: 0=Config, 1=48K, 2=128K, 3=+2A/3e, 4=Pentagon, 8=Next
+    // Writing \$03 in Config mode (the implicit state while Boot ROM is
+    // running) is the documented hand-off signal: Boot ROM clears and
+    // slots 0/1 swap to the loaded main ROM.
+    if (reg == 0x03) {
+        const bool was_boot = NextMMU::bootrom_en;
+        NextMMU::bootrom_en = false;
+        NextMMU::refresh_rom_slots();
+        if (was_boot) {
+            // Hand-off semantic: after the swap, Z80 PC is just past the
+            // Boot ROM NEXTREG instruction — which now points into the
+            // middle of the freshly-mapped NextZXOS ROM. Real hardware's
+            // Boot ROM uses code layout tricks to make that work; we
+            // approximate by snapping PC back to \$0000 so NextZXOS sees
+            // a clean entry. Subsequent (non-Boot-ROM) writes to \$03 —
+            // e.g. a snapshot loader switching machine type at runtime —
+            // leave PC alone.
+            Z80::setRegPC(0x0000);
+        }
         return;
     }
 

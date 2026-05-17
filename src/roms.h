@@ -1,49 +1,16 @@
-/*
-
-ESPectrum, a Sinclair ZX Spectrum emulator for Espressif ESP32 SoC
-
-Copyright (c) 2023, 2024 Víctor Iborra [Eremus] and 2023 David Crespo [dcrespo3d]
-https://github.com/EremusOne/ZX-ESPectrum-IDF
-
-Based on ZX-ESPectrum-Wiimote
-Copyright (c) 2020, 2022 David Crespo [dcrespo3d]
-https://github.com/dcrespo3d/ZX-ESPectrum-Wiimote
-
-Based on previous work by Ramón Martinez and Jorge Fuertes
-https://github.com/rampa069/ZX-ESPectrum
-
-Original project by Pete Todd
-https://github.com/retrogubbins/paseVGA
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-To Contact the dev team you can write to zxespectrum@gmail.com or 
-visit https://zxespectrum.speccy.org/contacto
-
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// pico-next: stub roms.h.
+//
+// Legacy ESPectrum embedded a Sinclair 48K/128K/Custom/TR-DOS/esxDOS/
+// esxIDE ROM set here. pico-next emulates the Spectrum Next exclusively,
+// and its ROM is loaded from /machines/next/enNxtmmc.rom (or enNextZX.rom)
+// on the SD card at boot (see src/next/rom_loader.cpp). Consequently no
+// embedded ROM symbols are exported from here anymore — but the header
+// still exists because half a dozen translation units #include "roms.h"
+// and removing the includes is mechanical noise unrelated to ROM cleanup.
 
 #ifndef ROMS_H
 #define ROMS_H
 
-#include "roms/romSinclair48K.h"
-#include "roms/rom48Kcustom.h"
-#include "roms/romSinclair128K.h"
-#include "roms/rom128Kcustom.h"
-
-extern "C" unsigned char gb_rom_4_trdos_505d[];
-extern "C" unsigned char gb_rom_4_trdos_503[];
-extern "C" unsigned char gb_rom_4_trdos_504tm[];
-extern "C" unsigned char gb_rom_esxdos[];
-extern "C" unsigned char gb_rom_esxide[];
-#endif
+#endif // ROMS_H

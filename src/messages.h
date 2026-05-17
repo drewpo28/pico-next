@@ -515,27 +515,16 @@ static const char *MENU_MAIN_NO_SD[2] = { MENU_MAIN_NO_SD_EN, MENU_MAIN_NO_SD_ES
 	"Actualizar\t>\n"
 static const char *MENU_OPTIONS[2] = { MENU_OPTIONS_EN,MENU_OPTIONS_ES };
 
+// pico-next has no embedded ROMs to reflash — the Spectrum Next ROM
+// lives on the SD card, so the only "update" action is to bounce into
+// the RP2350 USB-MSC boot loader for a fresh .uf2.
 #define MENU_UPDATE_EN \
     "Update\n"\
-	"Firmware\t{HK_USB_BOOT}\n"\
-	"Custom ROM 48K\n"\
-	"Custom ROM 128k\n"\
-	"TRDOS ROM\n"
+	"Firmware\t{HK_USB_BOOT}\n"
 #define MENU_UPDATE_ES \
     "Actualizar\n"\
-	"Firmware\t{HK_USB_BOOT}\n"\
-	"ROM Custom 48K\n"\
-	"ROM Custom 128k\n"\
-	"TRDOS ROM\n"
+	"Firmware\t{HK_USB_BOOT}\n"
 static const char *MENU_UPDATE_FW[2] = { MENU_UPDATE_EN, MENU_UPDATE_ES };
-
-#define MENU_UPDATE_NO_SD_EN \
-    "Update\n"\
-	"Firmware\t{HK_USB_BOOT}\n"
-#define MENU_UPDATE_NO_SD_ES \
-    "Actualizar\n"\
-	"Firmware\t{HK_USB_BOOT}\n"
-static const char *MENU_UPDATE_FW_NO_SD[2] = { MENU_UPDATE_NO_SD_EN, MENU_UPDATE_NO_SD_ES };
 
 	#define MENU_VIDEO_EN \
 		"Video\n"\

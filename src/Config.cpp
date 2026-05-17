@@ -159,35 +159,13 @@ void Config::requestMachine(const string& newArch, const string& newRomSet)
         }
         return;
     }
-    if (arch == "48K") {
-        if (newRomSet=="") romSet = "48K"; else romSet = newRomSet;
-        if (newRomSet=="") romSet48 = "48K"; else romSet48 = newRomSet;
-        if (romSet48 == "48Kcs") {
-#if NO_SEPARATE_48K_CUSTOM
-            MemESP::rom[0].assign_rom(gb_rom_0_128k_custom);
-#else
-            MemESP::rom[0].assign_rom(gb_rom_0_48k_custom);
-#endif
-        } else
-            MemESP::rom[0].assign_rom(gb_rom_0_sinclair_48k);
-    }
-    else { // 128K (default)
-        if (newRomSet=="") romSet = "128K"; else romSet = newRomSet;
-        if (newRomSet=="") romSet128 = "128K"; else romSet128 = newRomSet;
-        if (romSet128 == "128Kcs") {
-            MemESP::rom[0].assign_rom(gb_rom_0_128k_custom);
-            MemESP::rom[1].assign_rom(gb_rom_0_128k_custom + (16 << 10)); /// 16392;
-        }
-        else {
-            MemESP::rom[0].assign_rom(gb_rom_0_sinclair_128k);
-            MemESP::rom[1].assign_rom(gb_rom_1_sinclair_128k);
-        }
-    }
-    switch (Config::trdosBios) {
-        case 0: MemESP::rom[4].assign_rom(gb_rom_4_trdos_503); break;
-        case 1: MemESP::rom[4].assign_rom(gb_rom_4_trdos_504tm); break;
-        default: MemESP::rom[4].assign_rom(gb_rom_4_trdos_505d); break;
-    }
+
+    // pico-next emulates only the Spectrum Next; arch != "Next" arrivals
+    // (snapshot load that hard-codes "48K" / "128K", or stale NVS that
+    // ESPectrum::setup() didn't catch yet) just keep the current state
+    // without touching MemESP::rom[]. The Spectrum Next ROM lives in
+    // NextMMU::rom_image[] populated by NextROMLoader, and the legacy
+    // MemESP::rom[] slots are intentionally unused.
 }
 
 // RAM fallback for Config when no SD card

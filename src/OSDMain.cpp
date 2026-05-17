@@ -1687,11 +1687,10 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                                         Config::trdosBios = opt2 - 1;
                                         if (Config::trdosBios != prev) {
                                             Config::save();
-                                            switch (Config::trdosBios) {
-                                                case 0: MemESP::rom[4].assign_rom(gb_rom_4_trdos_503); break;
-                                                case 1: MemESP::rom[4].assign_rom(gb_rom_4_trdos_504tm); break;
-                                                default: MemESP::rom[4].assign_rom(gb_rom_4_trdos_505d); break;
-                                            }
+                                            // TR-DOS ROM swap is a no-op in pico-next — the
+                                            // legacy ROM images are gone. Config::trdosBios is
+                                            // still tracked for NVS round-tripping but has no
+                                            // visible effect.
                                         }
                                         menu_curopt = opt2;
                                         menu_saverect = false;
@@ -3228,38 +3227,22 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                             }
                         }
                     } else if (options_num == 7) {
+                        // Update submenu: only firmware reflash via USB-MSC
+                        // boot remains. Custom Spectrum-48K/128K/TR-DOS ROM
+                        // flashing is gone — pico-next ROM lives on the SD
+                        // card (enNxtmmc.rom / enNextZX.rom).
                         menu_level = 2;
                         menu_curopt = 1;
                         menu_saverect = true;
                         while (1) {
-                            // Update
-                            string Mnustr = expandHotkeys(FileUtils::fsMount ? MENU_UPDATE_FW[Config::lang] : MENU_UPDATE_FW_NO_SD[Config::lang]);
+                            string Mnustr = expandHotkeys(MENU_UPDATE_FW[Config::lang]);
                             uint8_t opt2 = menuRun(Mnustr);
-                            if (opt2) {
-                                // Update
-                                if (opt2 == 1) {
-                                    /// TODO: close all files
-                                    //close_all()
-                                    reset_usb_boot(0, 0);
-                                    while(1);
-                                } else {
-                                    string mFile = fileDialog(FileUtils::ROM_Path, MENU_ROM_TITLE[Config::lang], DISK_ROMFILE, 26, 15);
-                                    if (mFile != "") {
-                                        mFile.erase(0, 1);
-                                        string fname = FileUtils::ROM_Path + mFile;
-                                        bool res = updateROM(fname, opt2 - 1);
-                                        if (res) {
-                                            return;
-                                        }
-                                    }
-                                    menu_curopt = 1;
-                                    menu_level = 2;
-                                    menu_saverect = false;
-                                }
-                            } else {
-                                menu_curopt = 6;
-                                break;
+                            if (opt2 == 1) {
+                                reset_usb_boot(0, 0);
+                                while(1);
                             }
+                            menu_curopt = 6;
+                            break;
                         }
                     } else {
                         menu_curopt = 6;
@@ -6699,105 +6682,10 @@ flash_it:
     #endif
 }
 
-bool OSD::updateROM(const string& fname, uint8_t arch) {
-    FIL* f = fopen2(fname.c_str(), FA_READ);
-    if (!f) {
-        osdCenteredMsg(OSD_NOROMFILE_ERR[Config::lang], LEVEL_WARN, 2000);
-        return false;
-    }
-    FSIZE_t bytesfirmware = f_size(f);
-    const uint8_t* rom;
-    FSIZE_t max_rom_size = 0;
-    string dlgTitle = OSD_ROM[Config::lang];
-    // Flash custom ROM 48K
-    if ( arch == 1 ) {
-        if( bytesfirmware > 0x4000 ) {
-            osdCenteredMsg("Too long file", LEVEL_WARN, 2000);
-            fclose2(f);
-            return false;
-        }
-#if NO_SEPARATE_48K_CUSTOM
-        rom = gb_rom_0_128k_custom;
-#else
-        rom = gb_rom_0_48k_custom;
-#endif
-        max_rom_size = 16 << 10;
-        dlgTitle += " 48K   ";
-        Config::arch = "48K";
-        Config::romSet = "48Kcs";
-        Config::romSet48 = "48Kcs";
-        Config::pref_arch = "48K";
-        Config::pref_romSet_48 = "48Kcs";
-    }
-    // Flash custom ROM 128K
-    else if ( arch == 2 ) {
-        if( bytesfirmware > 0x8000 ) {
-            osdCenteredMsg("Unsupported file (by size)", LEVEL_WARN, 2000);
-            fclose2(f);
-            return false;
-        }
-        rom = gb_rom_0_128k_custom;
-        if (bytesfirmware <= (16 << 10)) {
-            max_rom_size = 16 << 10;
-        } else {
-            max_rom_size = 32 << 10;
-        }
-        dlgTitle += " 128K  ";
-        Config::arch = "128K";
-        Config::romSet = "128Kcs";
-        Config::romSet128 = "128Kcs";
-        Config::pref_arch = "128K";
-        Config::pref_romSet_128 = "128Kcs";
-    }
-    else if ( arch == 3 ) {
-        // TR-DOS Beta-128 ROM (was previously listed as arch==4 after Pentagon).
-        if( bytesfirmware > (16ul << 10) ) {
-            osdCenteredMsg("Unsupported file (by size)", LEVEL_WARN, 2000);
-            fclose2(f);
-            return false;
-        }
-        switch (Config::trdosBios) {
-            case 0: rom = gb_rom_4_trdos_503; break;
-            case 1: rom = gb_rom_4_trdos_504tm; break;
-            default: rom = gb_rom_4_trdos_505d; break;
-        }
-        max_rom_size = 16ul << 10;
-        dlgTitle += " TRDOS ";
-        Config::arch = "128K";
-    }
-    else {
-        osdCenteredMsg("Unexpected ROM type: " + to_string(arch), LEVEL_WARN, 2000);
-        fclose2(f);
-        return false;
-    }
-    size_t flash_target_offset = (size_t)rom - XIP_BASE;
-    UINT br;
-    const size_t sz = 512;
-    uint8_t* buffer = (uint8_t*)malloc(sz);
-    FSIZE_t i = 0;
-    for (; i < bytesfirmware && i < max_rom_size; i += sz) {
-        memset(buffer, 0, sz);
-        if ( f_read(f, buffer, sz, &br) != FR_OK) {
-            osdCenteredMsg(fname + " - unable to read", LEVEL_ERROR, 5000);
-            free(buffer);
-            fclose2(f);
-            return false;
-        }
-        flash_block(buffer, flash_target_offset + (size_t)(i & 0xFFFFFFFF));
-    }
-    fclose2(f);
-    memset(buffer, 0, sz);
-    for (; i < max_rom_size; i += sz) {
-        flash_block(buffer, flash_target_offset + (size_t)(i & 0xFFFFFFFF));
-    }
-    free(buffer);
-    Config::save();
-///    Config::requestMachine(Config::arch, Config::romSet);
-    // Firmware written: reboot
-///    ESPectrum::reset();
-    OSD::esp_hard_reset();
-    return true;
-}
+// OSD::updateROM() removed — pico-next has no embedded ROM image to
+// reflash. The active ROM is loaded from /machines/next/enNxtmmc.rom
+// (or enNextZX.rom) by NextROMLoader at boot, so the user "updates ROM"
+// by replacing files on the SD card.
 
 bool OSD::updateFirmware(FIL* firmware) {
     /**

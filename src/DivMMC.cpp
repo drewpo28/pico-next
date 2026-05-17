@@ -175,19 +175,17 @@ void DivMMC::init() {
     }
     clearAllBanks();
 
-    // Point ROM directly to flash (no heap allocation needed)
-    const char* mode_name;
-    if (Config::esxdos == 2) {
-        esxdos_rom = (uint8_t *)gb_rom_esxide;
-        mode_name = "DivIDE";
-    } else {
-        esxdos_rom = (uint8_t *)gb_rom_esxdos;
-        mode_name = divsd_mode ? "DivSD" : "DivMMC";
-    }
-    rom_loaded = true;
-    Debug::log("%s ROM verify: %02X %02X %02X %02X %02X %02X %02X @ %p",
-        mode_name, esxdos_rom[0], esxdos_rom[1], esxdos_rom[2], esxdos_rom[3],
-        esxdos_rom[4], esxdos_rom[5], esxdos_rom[6], esxdos_rom);
+    // No embedded esxDOS / esxIDE ROM in pico-next — NextZXOS implements
+    // the esxDOS API in its own ROM (loaded from SD by NextROMLoader),
+    // and the legacy auto-map mechanism that swapped this ROM into
+    // page 0 on RST $08 / $38 traps is a no-op under NextMMU anyway.
+    // Keep `esxdos_rom = nullptr` and `rom_loaded = false` so any path
+    // that still tries to dereference it bails out cleanly.
+    esxdos_rom = nullptr;
+    rom_loaded = false;
+    const char* mode_name = (Config::esxdos == 2) ? "DivIDE"
+                          : (divsd_mode ? "DivSD" : "DivMMC");
+    Debug::log("%s: ports active, no embedded handler ROM", mode_name);
 
     // Close previous images if open
     for (int d = 0; d < 2; d++) {
@@ -372,8 +370,14 @@ void DivMMC::applyMapping() {
         if (mapram) {
             materialize(3);
             MemESP::page0_lo = bank_ptr[3];
-        } else {
+        } else if (esxdos_rom) {
             MemESP::page0_lo = esxdos_rom;
+        } else {
+            // pico-next: no embedded esxDOS ROM. The Z80 bus in Next mode
+            // reads through NextMMU which doesn't consult page0_lo, so we
+            // leave it as nullptr — if any non-Next code path lands here
+            // we'd rather see a hard fault than silently read garbage.
+            MemESP::page0_lo = nullptr;
         }
         materialize(b);
         MemESP::page0_hi = bank_ptr[b];

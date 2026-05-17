@@ -156,6 +156,37 @@ void write(uint8_t reg, uint8_t value) {
         return;
     }
 
+    // NextReg $8C — Alternate ROM Register
+    //   bit 7  Alt ROM enable (immediate)
+    //   bit 6  Alt ROM only on writes (1 = reads keep main ROM)
+    //   bit 5  Lock ROM1 (48K rom) — TODO
+    //   bit 4  Lock ROM0 (128K rom) — TODO
+    //   bits 3-0  After-soft-reset copy of bits 7-4 (applied on \$02 reset)
+    // The lock bits would pin ROM 0/1 regardless of the \$7FFD/\$1FFD ROM
+    // selection — meaningful once we track the active ROM bank index in
+    // NextMMU (today rom_for_slot just spans slot×8K of the linear 64 KB
+    // rom_image, so any value of \$7FFD/\$1FFD lands on the same bytes).
+    // For now we propagate bit 7 / bit 6 by refreshing slot 0/1 pointers.
+    // Refs: https://wiki.specnext.dev/Alternate_ROM
+    if (reg == 0x8C) {
+        NextMMU::refresh_rom_slots();
+        return;
+    }
+
+    // NextReg $C0 — Interrupt Mode Configuration
+    //   bits 7-5 high 3 bits of IM2 vector-table LSB
+    //   bit 3    NMI return-address stash to \$C2/\$C3 instead of stack
+    //   bit 0    Hardware IM2 mode enable (use NextReg vectors over data bus)
+    // Store-only for Milestone 1: the Z80 IM2 path in Z80_JLS still pulls
+    // the vector LSB from the data bus (0xFF default). Once Layer 2 / line
+    // interrupt / CTC need real vector dispatch, the Z80 IM2 handler will
+    // gain a NextReg-aware override here.
+    // Ref: https://wiki.specnext.dev/Interrupts
+    if (reg == 0xC0) {
+        // No active side effect yet — value already stored in regs[\$C0].
+        return;
+    }
+
     // NextReg $8E — Bank Select / Paging Control
     //   bit 7  All-RAM mode (page 0 = RAM bank, no ROM in lower 16K)
     //   bit 3  Pentagon paging mode bit

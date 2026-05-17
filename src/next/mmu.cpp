@@ -16,14 +16,24 @@ namespace NextMMU {
 uint8_t* slot_ptr[SLOTS] = { nullptr };
 bool     slot_ro [SLOTS] = { false };
 uint8_t  rom_image[ROM_SIZE];
+uint8_t  alt_rom_image[ALT_ROM_SIZE];
 
-// Each consecutive 8 KB ROM half maps to one Z80 8K slot when that slot's
-// NextReg holds 0xFF. The two ROM halves that a slot selects (high or
-// low) are driven by the Memory Mapping Register / Alt-ROM logic; for
-// Milestone 1 we treat the entire 64 KB ROM image as flat and map slot
-// 0 → rom_image[0..0x1FFF], slot 1 → rom_image[0x2000..0x3FFF], etc. The
-// 128K/+3 Alt-ROM swap arrives with the ROM loader commit.
+// Resolve the ROM-pointer that should back slot N when NextReg::regs[\$50+N]
+// holds 0xFF. NextReg \$8C bit 7 enables the Alt ROM swap for slots 0 and 1
+// (Z80 \$0000-\$3FFF). Bit 6 says Alt ROM is only visible to **writes** —
+// reads still see the main ROM, so for read-only-mapped slots we keep
+// pointing at the main rom_image. Lock bits ($8C bits 5/4 — pin ROM1 / ROM0)
+// are TODO; current behaviour treats slot 0 as alt_rom[0..0x1FFF] and slot 1
+// as alt_rom[0x2000..0x3FFF].
 static inline uint8_t* rom_for_slot(int slot) {
+    if (slot < 2) {
+        uint8_t altrom = NextReg::regs[0x8C];
+        const bool altrom_en        = (altrom & 0x80) != 0;
+        const bool altrom_write_only = (altrom & 0x40) != 0;
+        if (altrom_en && !altrom_write_only) {
+            return alt_rom_image + (slot * SLOT_SIZE);
+        }
+    }
     return rom_image + (slot * SLOT_SIZE);
 }
 
@@ -52,6 +62,23 @@ void set_slot(int slot, uint8_t page) {
 void init() {
     // Fill the ROM placeholder so unmapped fetches decode to RST $38.
     memset(rom_image, 0xFF, sizeof(rom_image));
+    // Alt ROM mirrors the first 32 KB of main ROM by default — software
+    // that flips \$8C bit 7 before NextROMLoader runs sees a coherent
+    // sequence rather than 0xFF stream. NextROMLoader::load() rewrites
+    // both buffers immediately after init().
+    memset(alt_rom_image, 0xFF, sizeof(alt_rom_image));
+}
+
+// Re-evaluate slot 0/1 pointers without disturbing the page-number stored
+// in NextReg::regs[\$50/\$51]. Used when \$8C changes and ROM-mapped slots
+// must swap between main and Alt ROM.
+void refresh_rom_slots() {
+    for (int slot = 0; slot < 2; ++slot) {
+        if (NextReg::regs[0x50 + slot] == PAGE_ROM) {
+            slot_ptr[slot] = rom_for_slot(slot);
+            slot_ro [slot] = true;
+        }
+    }
 }
 
 void reset() {

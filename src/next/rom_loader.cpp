@@ -58,6 +58,12 @@ static bool try_path(const char* path) {
         memset(NextMMU::rom_image + to_read, 0xFF, NextMMU::ROM_SIZE - to_read);
     }
 
+    // Alt ROM (32 KB) defaults to a copy of the first half of the main
+    // ROM. NextZXOS that flips NextReg \$8C bit 7 then sees coherent code
+    // instead of 0xFF. Future enhancement: try loading enAltZX.rom from
+    // SD and overlay it on top of this mirror.
+    memcpy(NextMMU::alt_rom_image, NextMMU::rom_image, NextMMU::ALT_ROM_SIZE);
+
     Debug::log("NextROM: loaded %s (%u bytes) head=%02X %02X %02X %02X",
                path, (unsigned)br,
                NextMMU::rom_image[0], NextMMU::rom_image[1],

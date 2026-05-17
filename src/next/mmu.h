@@ -49,6 +49,10 @@ void init();
 // opcode. Does **not** touch rom_image[] — use init() for that.
 void reset();
 
+// Re-evaluate slot 0/1 ROM mapping after NextReg \$8C changes. Doesn't
+// touch RAM-mapped slots or other ROM-page-related state.
+void refresh_rom_slots();
+
 // Update slot N (0..7) to source from physical Next page number.
 // page < 224     → NextRAM page
 // page == 0xFF   → ROM (slot becomes read-only, points at ROM buffer)
@@ -70,11 +74,21 @@ inline void writebyte(uint16_t addr, uint8_t value) {
     slot_ptr[slot][addr & SLOT_MASK] = value;
 }
 
-// 64 KB of ROM placeholder space (8 pages × 8 KB). The SD ROM-loader
-// populates this from enNextZX.rom in a later commit. Until then the
-// buffer reads as 0xFF — i.e. a hostile boot environment that mostly
-// emits RST $38, exposing any MMU bug as a tight loop at PC=$0038.
+// 64 KB of ROM placeholder space (8 pages × 8 KB). NextROMLoader populates
+// this from enNextZX.rom / enNxtmmc.rom at boot. Until then it reads as
+// 0xFF — i.e. RST $38 on the bus, exposing any MMU misrouting as a
+// visible PC=$0038 loop.
 constexpr uint32_t ROM_SIZE = 64u * 1024u;
 extern uint8_t rom_image[ROM_SIZE];
+
+// 32 KB of Alt ROM. NextReg \$8C bit 7 enables Alt ROM, which on real
+// hardware swaps in this region instead of the main ROM at Z80 \$0000-
+// \$3FFF for read accesses (and optionally write accesses too — \$8C
+// bit 6). Some firmware ships a separate enAltZX.rom; until pico-next
+// learns to load it, we mirror the first 32 KB of the main rom_image
+// into this buffer at init so software that flips \$8C bit 7 sees
+// consistent code instead of 0xFF bus garbage.
+constexpr uint32_t ALT_ROM_SIZE = 32u * 1024u;
+extern uint8_t alt_rom_image[ALT_ROM_SIZE];
 
 } // namespace NextMMU

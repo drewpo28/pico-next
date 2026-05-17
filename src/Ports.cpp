@@ -53,6 +53,7 @@ visit https://zxespectrum.speccy.org/contacto
 #include "Z80DMA.h"
 #include "DivMMC.h"
 #include "next/nextreg.h"
+#include "next/mmu.h"
 #include "hardware/gpio.h"
 #include "sdcard.h"
 
@@ -333,6 +334,12 @@ IRAM_ATTR uint8_t Ports::input(uint16_t address) {
             MemESP::bankLatch = page;
             MemESP::ramCurrent[3] = MemESP::ram[page].sync(3);
             MemESP::ramContended[3] = page & 0x01 ? true : false;
+            // Sync to NextReg/NextMMU — see the matching block in the
+            // \$7FFD write path below.
+            if (NextReg::enabled) {
+              NextReg::write(0x56, (uint8_t)(page * 2));
+              NextReg::write(0x57, (uint8_t)(page * 2 + 1));
+            }
           }
           if (MemESP::videoLatch != bitRead(data, 3)) {
             MemESP::videoLatch = bitRead(data, 3);
@@ -615,6 +622,15 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
         MemESP::bankLatch = page;
         MemESP::ramCurrent[3] = MemESP::ram[page].sync(3);
         MemESP::ramContended[3] = (page & 0x01) ? true : false;
+        // Spectrum Next synchronises the classic 128K $7FFD bank-select
+        // with NextReg \$56/\$57 (slots 6/7 covering Z80 \$C000-\$FFFF).
+        // Classic bank N maps to Next pages 2N (low half) and 2N+1
+        // (high half). NextReg::write() routes both through
+        // NextMMU::set_slot so the next Z80 fetch sees the new mapping.
+        if (NextReg::enabled) {
+          NextReg::write(0x56, (uint8_t)(page * 2));
+          NextReg::write(0x57, (uint8_t)(page * 2 + 1));
+        }
       }
       MemESP::romLatch = bitRead(data, 4);
       if (!ESPectrum::trdos) {

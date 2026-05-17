@@ -8,6 +8,8 @@
 #include "layer2.h"
 #include "../ESPectrum.h"
 #include "../CPU.h"
+#include "../MemESP.h"
+#include "../Video.h"
 
 namespace NextReg {
 
@@ -128,6 +130,48 @@ void write(uint8_t reg, uint8_t value) {
         palette[palette_select][palette_index] =
             (uint16_t)((cur & ~0x201) | b_lsb | prio);
         palette_index++;
+        return;
+    }
+
+    // NextReg $68 — Enhanced ULA Control
+    //   bit 7  ULA output disable (1 = ULA hidden, only Layer 2 / Tilemap visible)
+    //   bit 6-5 blend mode (00=ULA, 01=L2 over ULA, 10=Tilemap blend, 11=Sprite blend)
+    //   bit 4  cancel extended keys
+    //   bit 3  ULA+ palette enable (mirrors port $FF3B mode-group bit 0)
+    //   bit 2  ULA fine-scroll X enable
+    //   bit 0  ULA stencil mode (ULA reads as transparent where pixel == 0)
+    // For Milestone 1 the only bit we honour is 3 (drive Video::ulaplus_enabled
+    // so writes flushed by NextZXOS take effect without a port-$FF3B write).
+    // The rest is stored in regs[$68] for later read-back; the renderer
+    // changes for bit 7 and 5-6 land with the Layer 2 / Tilemap composite.
+    // Ref: https://wiki.specnext.dev/Enhanced_ULA_Control
+    if (reg == 0x68) {
+        if (value & 0x08) {
+            if (!VIDEO::ulaplus_enabled) {
+                VIDEO::ulaplus_enabled = true;
+            }
+        } else if (VIDEO::ulaplus_enabled) {
+            VIDEO::ulaPlusDisable();
+        }
+        return;
+    }
+
+    // NextReg $8E — Bank Select / Paging Control
+    //   bit 7  All-RAM mode (page 0 = RAM bank, no ROM in lower 16K)
+    //   bit 3  Pentagon paging mode bit
+    //   bit 2  $7FFD paging-lock disable (write 1 to unlock further \$7FFD writes)
+    //   bit 1  +3-style $1FFD bit 2 (special paging mode)
+    //   bit 0  +3-style $1FFD bit 0 (motor on / disk paging)
+    // NextZXOS sets bit 2 during boot to disengage the lock that 128K BASIC
+    // raised at \$7FFD; without it later \$7FFD writes silently no-op. The
+    // other bits stay in storage until AllRAM / +3 / Pentagon paths land.
+    // Ref: https://wiki.specnext.dev/Memory_Mapping_Register
+    if (reg == 0x8E) {
+        if (value & 0x04) {
+            // Unlock the classic 128K paging latch so further \$7FFD writes
+            // through Ports.cpp actually update the bank.
+            MemESP::pagingLock = 0;
+        }
         return;
     }
 

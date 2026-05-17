@@ -6405,43 +6405,225 @@ void Z80::decodeED(void) {
         }
         // -----------------------------------------------------------------
         // Z80N extended instruction set (Spectrum Next only).
-        // Ref: https://wiki.specnext.dev/Extended_Z80_instruction_set
+        // Refs:
+        //   https://wiki.specnext.dev/Extended_Z80_instruction_set
+        //   https://table.specnext.dev/
         //
-        // Only the opcodes that NextZXOS hits on the path to its boot splash
-        // are implemented here; everything else falls through to the
-        // "unknown Z80N opcode" trap below so we can surface what real
-        // software uses and add it incrementally. Flags are intentionally
-        // not touched — Z80N defines them as preserved for these ops.
+        // Active only when running in Next mode (NextReg::enabled). In
+        // classic Spectrum / Pentagon compat the same encodings stay in
+        // the silent-NOP fallthrough at the bottom of this switch, which
+        // matches real Z80 hardware behaviour for undefined ED opcodes.
+        // Flags are preserved for all Z80N opcodes except TEST n.
         // -----------------------------------------------------------------
         case 0x23: { /* SWAPNIB: A = (A << 4) | (A >> 4) */
+            if (!NextReg::enabled) goto z80n_unknown;
             regA = (uint8_t)((regA << 4) | (regA >> 4));
             break;
         }
+        case 0x24: { /* MIRROR A: reverse bits of A */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint8_t v = regA;
+            v = ((v & 0xF0) >> 4) | ((v & 0x0F) << 4);
+            v = ((v & 0xCC) >> 2) | ((v & 0x33) << 2);
+            v = ((v & 0xAA) >> 1) | ((v & 0x55) << 1);
+            regA = v;
+            break;
+        }
+        case 0x27: { /* TEST n: set flags from (A & immediate), A unchanged */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint8_t n = Z80Ops::peek8(REG_PC); REG_PC++;
+            uint8_t r = (uint8_t)(regA & n);
+            carryFlag = false;
+            sz5h3pnFlags = sz53pn_addTable[r] | HALFCARRY_MASK;
+            flagQ = true;
+            break;
+        }
+        case 0x28: { /* BSLA DE,B: DE <<= (B & 0x1F) (logical) */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint8_t n = REG_B & 0x1F;
+            REG_DE = (n >= 16) ? 0 : (uint16_t)(REG_DE << n);
+            break;
+        }
+        case 0x29: { /* BSRA DE,B: arithmetic right shift DE by (B & 0x1F) */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint8_t n = REG_B & 0x1F;
+            int16_t v = (int16_t)REG_DE;
+            if (n >= 16) v = (v < 0) ? -1 : 0;
+            else v = (int16_t)(v >> n);
+            REG_DE = (uint16_t)v;
+            break;
+        }
+        case 0x2A: { /* BSRL DE,B: logical right shift DE by (B & 0x1F) */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint8_t n = REG_B & 0x1F;
+            REG_DE = (n >= 16) ? 0 : (uint16_t)(REG_DE >> n);
+            break;
+        }
+        case 0x2B: { /* BSRF DE,B: right shift DE by (B & 0x1F), fill with 1s */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint8_t n = REG_B & 0x1F;
+            if (n == 0) { /* unchanged */ }
+            else if (n >= 16) REG_DE = 0xFFFF;
+            else {
+                uint16_t fill = (uint16_t)((1u << n) - 1u) << (16 - n);
+                REG_DE = (uint16_t)((REG_DE >> n) | fill);
+            }
+            break;
+        }
+        case 0x2C: { /* BRLC DE,B: rotate DE left by (B & 0x0F) */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint8_t n = REG_B & 0x0F;
+            if (n) REG_DE = (uint16_t)((REG_DE << n) | (REG_DE >> (16 - n)));
+            break;
+        }
         case 0x30: { /* MUL DE: DE = D * E (unsigned 16-bit result) */
+            if (!NextReg::enabled) goto z80n_unknown;
             REG_DE = (uint16_t)((uint16_t)REG_D * (uint16_t)REG_E);
             break;
         }
-        case 0x31: { /* ADD HL,A: HL += A (A zero-extended) */
+        case 0x31: { /* ADD HL,A: HL += A (zero-extended) */
+            if (!NextReg::enabled) goto z80n_unknown;
             REG_HL = (uint16_t)(REG_HL + regA);
             break;
         }
         case 0x32: { /* ADD DE,A */
+            if (!NextReg::enabled) goto z80n_unknown;
             REG_DE = (uint16_t)(REG_DE + regA);
             break;
         }
         case 0x33: { /* ADD BC,A */
+            if (!NextReg::enabled) goto z80n_unknown;
             REG_BC = (uint16_t)(REG_BC + regA);
             break;
         }
-        case 0x91: { /* NEXTREG reg, val — two immediate bytes */
+        case 0x34: { /* ADD HL,nn: little-endian immediate */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint16_t lo = Z80Ops::peek8(REG_PC); REG_PC++;
+            uint16_t hi = Z80Ops::peek8(REG_PC); REG_PC++;
+            REG_HL = (uint16_t)(REG_HL + ((hi << 8) | lo));
+            break;
+        }
+        case 0x35: { /* ADD DE,nn */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint16_t lo = Z80Ops::peek8(REG_PC); REG_PC++;
+            uint16_t hi = Z80Ops::peek8(REG_PC); REG_PC++;
+            REG_DE = (uint16_t)(REG_DE + ((hi << 8) | lo));
+            break;
+        }
+        case 0x36: { /* ADD BC,nn */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint16_t lo = Z80Ops::peek8(REG_PC); REG_PC++;
+            uint16_t hi = Z80Ops::peek8(REG_PC); REG_PC++;
+            REG_BC = (uint16_t)(REG_BC + ((hi << 8) | lo));
+            break;
+        }
+        case 0x8A: { /* PUSH nn: BIG-endian immediate (unique to this opcode) */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint16_t hi = Z80Ops::peek8(REG_PC); REG_PC++;
+            uint16_t lo = Z80Ops::peek8(REG_PC); REG_PC++;
+            uint16_t v = (uint16_t)((hi << 8) | lo);
+            REG_SP -= 2;
+            Z80Ops::poke8(REG_SP, (uint8_t)(v & 0xFF));
+            Z80Ops::poke8((uint16_t)(REG_SP + 1), (uint8_t)(v >> 8));
+            break;
+        }
+        case 0x90: { /* OUTINB: (BC) <- (HL); HL++. B unchanged (unlike OUTI) */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint8_t v = Z80Ops::peek8(REG_HL);
+            Ports::output(REG_BC, v);
+            REG_HL++;
+            break;
+        }
+        case 0x91: { /* NEXTREG reg,val — two immediate bytes */
             uint8_t reg = Z80Ops::peek8(REG_PC); REG_PC++;
             uint8_t val = Z80Ops::peek8(REG_PC); REG_PC++;
             NextReg::write(reg, val);
             break;
         }
-        case 0x92: { /* NEXTREG reg, A — one immediate byte, value from A */
+        case 0x92: { /* NEXTREG reg,A — one immediate byte (reg), value from A */
             uint8_t reg = Z80Ops::peek8(REG_PC); REG_PC++;
             NextReg::write(reg, regA);
+            break;
+        }
+        case 0x93: { /* PIXELDN: HL = pixel-byte address one row below */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint8_t h = REG_H, l = REG_L;
+            if ((h & 0x07) != 0x07) {
+                h++;                            // next scan-within-char
+            } else {
+                h &= ~0x07;                     // wrap scan to 0
+                if ((l & 0xE0) != 0xE0) {
+                    l = (uint8_t)(l + 0x20);    // next char-row-within-third
+                } else {
+                    l &= 0x1F;                  // wrap char-row
+                    h = (uint8_t)(h + 0x08);    // next third
+                }
+            }
+            REG_H = h; REG_L = l;
+            break;
+        }
+        case 0x94: { /* PIXELAD: HL = pixel address for D=Y(0-191), E=X(0-255) */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint8_t y = REG_D, x = REG_E;
+            REG_H = (uint8_t)(0x40 | ((y & 0xC0) >> 3) | (y & 0x07));
+            REG_L = (uint8_t)(((y & 0x38) << 2) | (x >> 3));
+            break;
+        }
+        case 0x95: { /* SETAE: A = bit mask 0x80 >> (E & 7) (pixel-within-byte) */
+            if (!NextReg::enabled) goto z80n_unknown;
+            regA = (uint8_t)(0x80 >> (REG_E & 0x07));
+            break;
+        }
+        case 0x98: { /* JP (C): PC[13:0] = IN(BC) << 6; high 2 bits of PC preserved */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint8_t v = Ports::input(REG_BC);
+            REG_PC = (uint16_t)((REG_PC & 0xC000) | ((uint16_t)v << 6));
+            break;
+        }
+        case 0xA4: { /* LDIX: like LDI but (DE) <- (HL) only if (HL) != A */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint8_t v = Z80Ops::peek8(REG_HL);
+            if (v != regA) Z80Ops::poke8(REG_DE, v);
+            REG_HL++; REG_DE++; REG_BC--;
+            break;
+        }
+        case 0xA5: { /* LDWS: (DE) <- (HL); L++; D++  (per sjasmplus tests) */
+            if (!NextReg::enabled) goto z80n_unknown;
+            Z80Ops::poke8(REG_DE, Z80Ops::peek8(REG_HL));
+            REG_L++;
+            REG_D++;
+            break;
+        }
+        case 0xAC: { /* LDDX: like LDD but skip-if-A; DE++ instead of DE-- */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint8_t v = Z80Ops::peek8(REG_HL);
+            if (v != regA) Z80Ops::poke8(REG_DE, v);
+            REG_HL--; REG_DE++; REG_BC--;
+            break;
+        }
+        case 0xB4: { /* LDIRX: repeating LDIX while BC != 0 */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint8_t v = Z80Ops::peek8(REG_HL);
+            if (v != regA) Z80Ops::poke8(REG_DE, v);
+            REG_HL++; REG_DE++; REG_BC--;
+            if (REG_BC) REG_PC = (uint16_t)(REG_PC - 2); // re-execute
+            break;
+        }
+        case 0xB7: { /* LDPIRX: pattern-fill from 8-byte aligned table */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint16_t src = (uint16_t)((REG_HL & 0xFFF8) | (REG_E & 0x07));
+            uint8_t v = Z80Ops::peek8(src);
+            if (v != regA) Z80Ops::poke8(REG_DE, v);
+            REG_DE++; REG_BC--;
+            if (REG_BC) REG_PC = (uint16_t)(REG_PC - 2);
+            break;
+        }
+        case 0xBC: { /* LDDRX: repeating LDDX */
+            if (!NextReg::enabled) goto z80n_unknown;
+            uint8_t v = Z80Ops::peek8(REG_HL);
+            if (v != regA) Z80Ops::poke8(REG_DE, v);
+            REG_HL--; REG_DE++; REG_BC--;
+            if (REG_BC) REG_PC = (uint16_t)(REG_PC - 2);
             break;
         }
         // case 0xDD:
@@ -6454,13 +6636,13 @@ void Z80::decodeED(void) {
             // prefixOpcode = 0xFD;
             // break;
         default:
+        z80n_unknown:
             // Unknown ED-prefix opcode. On classic Spectrum machines a real
             // Z80 silently NOPs undefined ED encodings, so stay quiet there.
-            // On Spectrum Next many of these are Z80N — log once per opcode
-            // so we can spot what NextZXOS actually issues without spamming
-            // the UART in tight loops. PC has already been advanced past the
-            // opcode byte; the report below shows the location of the prefix
-            // that started this instruction (REG_PC-2).
+            // In Next mode anything reaching here is either a Z80N opcode we
+            // haven't implemented yet or a genuine probe of an unused slot.
+            // Deduplicate per-opcode so a tight unimplemented-instruction
+            // loop produces one UART line, not a flood.
             if (NextReg::enabled) {
                 static uint32_t seen_mask[8] = {0,0,0,0,0,0,0,0}; // 256 bits
                 uint32_t& w = seen_mask[opCode >> 5];

@@ -697,6 +697,14 @@ void ESPectrum::setup() {
 
   ///    if (Config::slog_on) showMemInfo("RAM Initialized");
 
+  // Spectrum Next requires DivMMC in DivSD (raw SD) mode for NextZXOS to
+  // see the filesystem — force it on at boot even if NVS-saved Config has
+  // it disabled, otherwise we'd silently leave Next without SD access.
+  // Other arches keep the user's saved choice.
+  if (Config::arch == "Next" && Config::esxdos != 3) {
+    Config::esxdos = 3;
+  }
+
   // Always init DivMMC (load ROM) so it's ready if user enables from OSD later
   DivMMC::init();
 

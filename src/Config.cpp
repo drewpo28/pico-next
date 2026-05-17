@@ -6,6 +6,7 @@
 #include "fabutils.h"
 #include "messages.h"
 #include "OSDMain.h"
+#include "DivMMC.h"
 #include "psram_spi.h"
 #include "pwm_audio.h"
 #include "graphics.h"
@@ -145,6 +146,17 @@ void Config::requestMachine(const string& newArch, const string& newRomSet)
         // untouched. romSet is informational only — kept so save/load
         // round-trips don't lose the user's preference.
         if (newRomSet == "") romSet = "Next"; else romSet = newRomSet;
+
+        // NextZXOS implements the esxDOS API itself and expects DivMMC
+        // hardware with raw SD-card access (DivSD mode = esxdos==3). Force
+        // it on when the machine type flips to Next — any other esxdos
+        // mode (off / .mmc image / .hdf image) leaves NextZXOS unable to
+        // see the SD card. The user can revisit the OSD esxDOS submenu
+        // afterwards if they have a specific setup in mind.
+        if (Config::esxdos != 3) {
+            Config::esxdos = 3;
+            DivMMC::init();
+        }
         return;
     }
     if (arch == "48K") {

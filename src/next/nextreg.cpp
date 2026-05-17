@@ -8,6 +8,10 @@
 
 namespace NextReg {
 
+uint16_t palette[PALETTE_COUNT][PALETTE_ENTRIES];
+uint8_t  palette_select       = 0;
+uint8_t  palette_index        = 0;
+
 bool enabled = false;
 uint8_t regs[256];
 uint8_t selected = 0;
@@ -33,10 +37,27 @@ void reset() {
     regs[0x01] = CORE_VERSION;
     regs[0x0E] = CORE_SUBMINOR;
     selected = 0;
+
+    // Palette state — zero everything; the ROM rewrites whatever it needs
+    // during boot. Storing as 9-bit values (R3 G3 B3) so consumers don't
+    // need to redo the 8↔9-bit unpacking on every render.
+    for (int p = 0; p < PALETTE_COUNT; ++p)
+        for (int i = 0; i < PALETTE_ENTRIES; ++i)
+            palette[p][i] = 0;
+    palette_select       = 0;
+    palette_index        = 0;
 }
 
 uint8_t read(uint8_t reg) {
     return regs[reg];
+}
+
+// Resolve NextReg $43 bits 6-4 to the [0..7] index used by palette[].
+static inline uint8_t decode_palette_select(uint8_t r43) {
+    // bits 6-4 hold the encoding: 000=ULA1, 100=ULA2, 001=L2-1, 101=L2-2,
+    // 010=Spr-1, 110=Spr-2, 011=Tm-1, 111=Tm-2. Compress into 0..7 by
+    // grouping bits as (bit6 << 2) | (bits 5-4).
+    return (uint8_t)(((r43 >> 6) & 0x01) << 2 | ((r43 >> 4) & 0x03));
 }
 
 void write(uint8_t reg, uint8_t value) {
@@ -49,8 +70,50 @@ void write(uint8_t reg, uint8_t value) {
         return;
     }
 
-    // Palette $40-$44, CPU speed $07, reset $02, ULA control $68, Alt ROM
-    // $8C, ... wire in as their respective modules land.
+    // -----------------------------------------------------------------
+    // Palette I/O (Spectrum Next 256-colour ULA / Layer2 / Sprite / Tilemap)
+    // Refs: https://wiki.specnext.dev/Palettes
+    //
+    // $40: palette index (8 bits). Bare write — no side effects.
+    // $41: 8-bit palette value (RRRGGGBB). Stores into selected palette
+    //      at `palette_index`, then auto-increments the index.
+    // $43: palette select (bits 6-4 choose which of the 8 palettes is
+    //      addressed; other bits hold per-layer enable flags that other
+    //      modules consume).
+    // $44: 9-bit extension — bit 0 of the byte is the LSB of B, bit 7
+    //      is the priority. Updates the in-place colour at the current
+    //      index then auto-increments. We treat $44 as a one-shot that
+    //      flips the pending flag; real hardware behaves the same.
+    // -----------------------------------------------------------------
+    if (reg == 0x40) {
+        palette_index = value;
+        return;
+    }
+    if (reg == 0x41) {
+        uint8_t r = (value >> 5) & 0x07;
+        uint8_t g = (value >> 2) & 0x07;
+        uint8_t b = (value << 1) & 0x06; // B[2..1] from value[1..0]; B[0]=0
+        palette[palette_select][palette_index] = (uint16_t)((r << 6) | (g << 3) | b);
+        palette_index++;
+        return;
+    }
+    if (reg == 0x43) {
+        palette_select = decode_palette_select(value);
+        return;
+    }
+    if (reg == 0x44) {
+        uint16_t cur = palette[palette_select][palette_index];
+        // Bit 0 of value = B[0]; bit 7 = priority (stored in bit 9 of entry).
+        uint16_t b_lsb = (value & 0x01) ? 0x01 : 0x00;
+        uint16_t prio  = (value & 0x80) ? 0x200 : 0x000;
+        palette[palette_select][palette_index] =
+            (uint16_t)((cur & ~0x201) | b_lsb | prio);
+        palette_index++;
+        return;
+    }
+
+    // CPU speed $07, reset $02, ULA control $68, Alt ROM $8C, ... wire in
+    // as their respective modules land.
 }
 
 void writeSelect(uint8_t reg) {

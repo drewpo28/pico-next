@@ -32,6 +32,31 @@ extern uint8_t selected;
 // Re-initialise the register file to power-on defaults.
 void reset();
 
+// Spectrum Next has eight 256-entry palettes (ULA / Layer2 / Sprites /
+// Tilemap × first/second). Each entry stores a 9-bit colour (RRR GGG BBB)
+// plus a priority bit, but software can write either 8-bit (port $41) or
+// 9-bit (port $44) forms. The palette currently selected for read/write
+// is encoded in NextReg $43 bits 6-4.
+//
+// Refs: https://wiki.specnext.dev/Palettes
+constexpr int PALETTE_COUNT = 8;
+constexpr int PALETTE_ENTRIES = 256;
+
+// 9-bit colour value + priority bit packed in low 10 bits of uint16_t.
+//   bits 8-6  = R (3 bits)
+//   bits 5-3  = G (3 bits)
+//   bits 2-0  = B (3 bits)
+//   bit  9    = priority (Layer2-over-sprite or similar)
+// Public so Video.cpp can index without indirection.
+extern uint16_t palette[PALETTE_COUNT][PALETTE_ENTRIES];
+
+// Palette selector decoded from NextReg $43 bits 6-4. 0=ULA1, 4=ULA2,
+// 1=L2-1, 5=L2-2, 2=Spr-1, 6=Spr-2, 3=Tm-1, 7=Tm-2.
+extern uint8_t  palette_select;
+
+// Auto-incrementing index for $41/$44 writes (NextReg $40).
+extern uint8_t  palette_index;
+
 // Port $243B (write): select a register for subsequent $253B access.
 void writeSelect(uint8_t reg);
 

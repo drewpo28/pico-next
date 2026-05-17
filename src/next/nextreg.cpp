@@ -203,6 +203,17 @@ void write(uint8_t reg, uint8_t value) {
             // through Ports.cpp actually update the bank.
             MemESP::pagingLock = 0;
         }
+        // Bits 1/0 of \$8E mirror into port \$1FFD bits 2/0 (ROM-bank high
+        // and +3 special paging). Software uses \$8E as the unified
+        // setter so it doesn't have to issue a separate OUT (\$1FFD).
+        const uint8_t v1ffd_bit2 = (value & 0x02) ? 0x04 : 0x00;
+        const uint8_t v1ffd_bit0 = (value & 0x01) ? 0x01 : 0x00;
+        const uint8_t new_1ffd = (uint8_t)((MemESP::port_1ffd_data & ~0x05)
+                                           | v1ffd_bit2 | v1ffd_bit0);
+        if (new_1ffd != MemESP::port_1ffd_data) {
+            MemESP::port_1ffd_data = new_1ffd;
+            NextMMU::update_rom_bank();
+        }
         return;
     }
 

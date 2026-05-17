@@ -171,6 +171,11 @@ public:
     static uint32_t bankLatch;
     static uint8_t videoLatch;
     static uint8_t romLatch;
+    // Last write to port $1FFD (+3 / Next paging). bit 0 = special paging
+    // mode, bit 2 = ROM bank high bit (combined with $7FFD bit 4 in
+    // MemESP::romLatch for the 0..3 ROM bank index). Drives
+    // NextMMU::rom_bank in Next mode.
+    static uint8_t port_1ffd_data;
     static uint8_t pagingLock;
 
     static uint8_t romInUse;

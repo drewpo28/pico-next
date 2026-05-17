@@ -295,6 +295,7 @@ uint32_t MemESP::page0ram = 0;
 uint32_t MemESP::bankLatch = 0;
 uint8_t MemESP::videoLatch = 0;
 uint8_t MemESP::romLatch = 0;
+uint8_t MemESP::port_1ffd_data = 0;
 uint8_t MemESP::pagingLock = 0;
 uint8_t MemESP::romInUse = 0;
 

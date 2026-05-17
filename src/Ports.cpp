@@ -353,6 +353,9 @@ IRAM_ATTR uint8_t Ports::input(uint16_t address) {
             MemESP::romInUse = MemESP::romLatch;
             MemESP::recoverPage0();
           }
+          if (NextReg::enabled) {
+            NextMMU::update_rom_bank();
+          }
         }
       }
     }
@@ -613,6 +616,18 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
     }
     ioContentionLate(MemESP::ramContended[rambank]);
   }
+  // +3 / Next paging — port 0x1FFD.
+  // bit 0 = special +3 paging mode (TODO), bit 2 = ROM bank high bit
+  // (combined with $7FFD bit 4 in NextMMU::rom_bank for the 0..3 ROM
+  // selector). Decode is `address & 0xF002 == 0x1000` per the standard
+  // partial-decoded +3 spec.
+  if ((!Z80Ops::is48) && ((address & 0xF002) == 0x1000)) {
+    MemESP::port_1ffd_data = data;
+    if (NextReg::enabled) {
+      NextMMU::update_rom_bank();
+    }
+  }
+
   // 128K paging — port 0x7FFD
   // ==================================================================
   if ((!Z80Ops::is48) && ((address & 0x8002) == 0)) { // 8002 !-> 7FFD
@@ -647,6 +662,11 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
         MemESP::romInUse = MemESP::romLatch;
       }
       if (!ESPectrum::trdos) MemESP::recoverPage0();
+      // \$7FFD bit 4 is the low bit of the ROM bank selector. Sync to
+      // NextMMU so slot 0/1 picks up the new 16 KB window of rom_image.
+      if (NextReg::enabled) {
+        NextMMU::update_rom_bank();
+      }
       if (MemESP::videoLatch != bitRead(data, 3)) {
         MemESP::videoLatch = bitRead(data, 3);
         VIDEO::grmem = MemESP::videoLatch ? MemESP::ram[7].direct()

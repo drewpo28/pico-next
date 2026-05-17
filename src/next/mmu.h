@@ -49,9 +49,31 @@ void init();
 // opcode. Does **not** touch rom_image[] — use init() for that.
 void reset();
 
-// Re-evaluate slot 0/1 ROM mapping after NextReg \$8C changes. Doesn't
-// touch RAM-mapped slots or other ROM-page-related state.
-void refresh_rom_slots();
+// Current ROM bank index 0..3 (= $7FFD bit 4 | $1FFD bit 2 << 1).
+// Selects which 16 KB of the 64 KB rom_image is visible at Z80
+// \$0000-\$3FFF when slot 0/1 is ROM-mapped.
+extern uint8_t rom_bank;
+
+// Recompute rom_bank from MemESP::romLatch + MemESP::port_1ffd_data and
+// re-evaluate slot 0/1 if it changed. Hook called from Ports.cpp after
+// \$7FFD and \$1FFD writes (and NextReg::write \$8E when it touches
+// \$1FFD-mirror bits).
+void update_rom_bank();
+
+// Unified slot-pointer recompute. Reads NextReg::regs[\$50+slot] (the
+// slot page selector) and applies overlays in priority order:
+//   1. Alt ROM (\$8C bit 7, slots 0-1 only)
+//   2. ROM bank index (rom_bank, slots 0-1 only when page == 0xFF)
+//   3. NextRAM page (page < 224)
+//   4. Fallback to main ROM 0xFF
+// All hook points that change a slot's source call this on the
+// affected slot(s), replacing the previous mix of set_slot() and
+// refresh_rom_slots().
+void bank_update(int slot);
+
+// Recompute every slot. Used at boot and when a register that touches
+// several slots changes (e.g. \$8E paging mode toggles).
+void bank_update_all();
 
 // Update slot N (0..7) to source from physical Next page number.
 // page < 224     → NextRAM page

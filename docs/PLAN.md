@@ -8,6 +8,33 @@ Spectrum Next — это FPGA-реализация Z80-совместимой м
 
 **Цель проекта**: получить эмулятор Spectrum Next, который грузит ROMы с SD-карты (как реальный Next) и поэтапно покрывает функционал core 3.x.
 
+## Прогресс (Milestone 1 — boot до splash)
+
+| Готово | Что | Коммит |
+|--------|-----|--------|
+| ✅ | NextReg storage + I/O \$243B/\$253B | `194e1eb` |
+| ✅ | Pimoroni Pico Plus 2 = PICO_DV target | `62fa010` |
+| ✅ | Z80N opcodes minimum (NEXTREG/MUL/ADD/SWAPNIB + trap) | `18d34d7` |
+| ✅ | 2 МБ Next-RAM в butter PSRAM | `9e38f46` |
+| ✅ | 8K MMU + NextReg \$50-\$57 → slot pointers | `5ba4d3e` |
+| ✅ | SD ROM loader (`enNextZX.rom` / `enNxtmmc.rom`) | `e99da95` |
+| ✅ | MemESP::ram[] → NextRAM bridge для Video.cpp | `e2e2054` |
+| ✅ | Полный Z80N opcode set (24 опкода + trap) | `827f678` |
+| ✅ | NextReg palette \$40-\$44 storage | `16a7a34` |
+| ✅ | Port \$7FFD ↔ NextReg \$56/\$57 sync | `be74620` |
+| ✅ | Layer 2 state + Port \$123B enable | `c16ea71` |
+
+## Что осталось до полной splash visibility
+
+- **ULA palette routing** в Video.cpp: индексировать через `NextReg::palette[0]` вместо фиксированной таблицы из 16 цветов. Без этого splash рисуется классической палитрой — узнаваем, но цвета могут быть «не те».
+- **Layer 2 рендеринг** в Video.cpp: оверлей `NextRAM[start_page*16K]` через `NextReg::palette[1]` поверх ULA. Без этого иконка Spectrum Next в splash не появится — только текст.
+- **NextReg side effects**: \$02 reset, \$08 peripheral config, \$68 ULA Control, \$8C Alt ROM, \$8E 128K paging — пока store-only.
+- **Port \$1FFD**: +3-стиль расширенного paging для ROM-bank переключения внутри 64KB Next-ROM.
+
+Эти куски не блокируют первый flash-test — splash будет частично видимым с классической палитрой и без Layer 2-логотипа. Доделываются по фидбэку UART-лога.
+
+---
+
 **Текущее состояние**: репозиторий `drewpo28/pico-next` пуст. Содержимое `pico-spec` (ветка `claude/pico-next-cleanup-JtWGm`) пользователь запушит в `main` отдельно через несколько дней. Этот план описывает работу **после** заливки.
 
 ## Целевое железо

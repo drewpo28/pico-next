@@ -12,6 +12,9 @@
 #include "../Video.h"
 #include "../Z80_JLS/z80.h"
 
+// Host-side framebuffer palette LUT, shared with Video.cpp.
+extern "C" void graphics_set_palette(uint8_t i, uint32_t color888);
+
 namespace NextReg {
 
 uint16_t palette[PALETTE_COUNT][PALETTE_ENTRIES];
@@ -64,6 +67,38 @@ static inline uint8_t decode_palette_select(uint8_t r43) {
     // 010=Spr-1, 110=Spr-2, 011=Tm-1, 111=Tm-2. Compress into 0..7 by
     // grouping bits as (bit6 << 2) | (bits 5-4).
     return (uint8_t)(((r43 >> 6) & 0x01) << 2 | ((r43 >> 4) & 0x03));
+}
+
+// Expand a 9-bit Spectrum-Next palette colour (RRR GGG BBB packed in the
+// low 9 bits of the uint16_t) into 8:8:8 RGB by replicating each 3-bit
+// field to 8 bits — i.e. R8 = RRR_RRR_RR where the top 3 are the source
+// nibble. Matches the host VGA hardware palette convention.
+static inline uint32_t rgb888_from_9bit(uint16_t color9) {
+    const uint8_t r = (uint8_t)((color9 >> 6) & 0x07);
+    const uint8_t g = (uint8_t)((color9 >> 3) & 0x07);
+    const uint8_t b = (uint8_t)( color9       & 0x07);
+    const uint8_t r8 = (uint8_t)((r << 5) | (r << 2) | (r >> 1));
+    const uint8_t g8 = (uint8_t)((g << 5) | (g << 2) | (g >> 1));
+    const uint8_t b8 = (uint8_t)((b << 5) | (b << 2) | (b >> 1));
+    return ((uint32_t)r8 << 16) | ((uint32_t)g8 << 8) | (uint32_t)b8;
+}
+
+// HW-palette layout while Next is active:
+//   slots 0..15   ULA standard 16 colours (palette[0] entries 0..15)
+//   slots 16..255 Layer 2 first palette (palette[1] entries 0..239)
+// Indexes >= 240 in palette[1] alias modulo 240 — see layer2.cpp comment.
+// Push a freshly-written palette entry into the matching HW slot so the
+// next frame sees the colour change without a full palette rebuild.
+static inline void push_hw_palette(uint8_t select, uint8_t index, uint16_t entry) {
+    if (select == 0 /* ULA-first */ && index < 16) {
+        graphics_set_palette(index, rgb888_from_9bit(entry));
+    } else if (select == 1 /* Layer2-first */) {
+        graphics_set_palette((uint8_t)(16 + (index % 240)),
+                             rgb888_from_9bit(entry));
+    }
+    // Sprite/Tilemap palettes (select 2/3/4..7) and the second-palette
+    // pairs (5..7) aren't routed yet — their renderers will own their
+    // own host-palette slot ranges when they land.
 }
 
 void write(uint8_t reg, uint8_t value) {
@@ -139,7 +174,9 @@ void write(uint8_t reg, uint8_t value) {
         uint8_t r = (value >> 5) & 0x07;
         uint8_t g = (value >> 2) & 0x07;
         uint8_t b = (value << 1) & 0x06; // B[2..1] from value[1..0]; B[0]=0
-        palette[palette_select][palette_index] = (uint16_t)((r << 6) | (g << 3) | b);
+        const uint16_t entry = (uint16_t)((r << 6) | (g << 3) | b);
+        palette[palette_select][palette_index] = entry;
+        push_hw_palette(palette_select, palette_index, entry);
         palette_index++;
         return;
     }
@@ -152,8 +189,9 @@ void write(uint8_t reg, uint8_t value) {
         // Bit 0 of value = B[0]; bit 7 = priority (stored in bit 9 of entry).
         uint16_t b_lsb = (value & 0x01) ? 0x01 : 0x00;
         uint16_t prio  = (value & 0x80) ? 0x200 : 0x000;
-        palette[palette_select][palette_index] =
-            (uint16_t)((cur & ~0x201) | b_lsb | prio);
+        const uint16_t entry = (uint16_t)((cur & ~0x201) | b_lsb | prio);
+        palette[palette_select][palette_index] = entry;
+        push_hw_palette(palette_select, palette_index, entry);
         palette_index++;
         return;
     }

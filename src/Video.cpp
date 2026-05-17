@@ -45,6 +45,8 @@ visit https://zxespectrum.speccy.org/contacto
 #include "hardconfig.h"
 #include "hardpins.h"
 #include "Z80_JLS/z80.h"
+#include "next/nextreg.h"
+#include "next/layer2.h"
 #include "Z80_JLS/z80operations.h"
 #include "psram_spi.h"
 #include "Z80DMA.h"
@@ -1827,6 +1829,19 @@ IRAM_ATTR void VIDEO::Blank_Snow(unsigned int statestoadd, bool contended) { CPU
 IRAM_ATTR void VIDEO::Blank_Snow_Opcode(bool contended) { CPU::tstates += 4; }
 
 IRAM_ATTR void VIDEO::EndFrame() {
+
+    // Spectrum Next Layer 2 compositor — overlays the 256×192 framebuffer
+    // (from NextRAM at Layer2::start_page * 16K) on top of the just-
+    // finished ULA frame. Transparent (palette index 0) pixels leave the
+    // ULA content underneath. HW palette slots 16..255 are pre-populated
+    // by NextReg::write(\$41/\$44) when palette[1] entries change, so by
+    // the time we get here the colours match NextZXOS's selection.
+    // Composite runs on the Z80-thread side just before the next frame
+    // starts; HDMI DMA reads the framebuffer continuously, so the
+    // overlay becomes visible without further synchronisation.
+    if (NextReg::enabled && Layer2::enabled) {
+        Layer2::composite();
+    }
 
     linedraw_cnt = lin_end;
 

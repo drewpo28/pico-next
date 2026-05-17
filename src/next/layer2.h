@@ -67,6 +67,14 @@ extern uint8_t clip_index;
 // offset, full-screen clip.
 void reset();
 
+// Render the active Layer 2 framebuffer onto the host VGA/HDMI buffer.
+// Called once per frame from VIDEO::EndFrame() — runs **after** the ULA
+// scanline renderer has finished writing the frame, so transparent
+// (palette index 0) Layer 2 pixels leave the ULA content visible.
+// Currently implements the 256×192 mode only; 320×256 / 640×256 are
+// quietly skipped until those modes need to work.
+void composite();
+
 // Called when NextReg $18 receives a write — advances clip_index 0..3
 // across X1, X2, Y1, Y2 in that order.
 void writeClip(uint8_t value);

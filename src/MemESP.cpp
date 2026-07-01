@@ -319,6 +319,8 @@ bool* MemESP::divmmc_lo_dirty = nullptr;
 uint8_t* MemESP::nextRamPtr[MemESP::NEXT_PAGES];
 uint8_t  MemESP::mmu[8];
 bool     MemESP::nextRamReady = false;
+uint8_t* MemESP::wrOverlay[2] = { nullptr, nullptr };
+bool     MemESP::wr_overlay_active = false;
 
 // Unmapped MMU pages read 0xFF (open bus). Lives in flash (.rodata), so the
 // XIP-address write guard in writebyte() blocks writes to it automatically.

@@ -201,6 +201,7 @@ IRAM_ATTR uint8_t Ports::input(uint16_t address) {
     if (Z80Ops::isNext) {
       if (address == 0x243B) return NextReg::selected;
       if (address == 0x253B) return NextReg::read(NextReg::selected);
+      if (address == 0x123B) return NextReg::port123B;
     }
     // ULA+ data port read
     if (Config::ulaplus && address == 0xFF3B) {
@@ -452,6 +453,11 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
       }
       if (address == 0x253B) {
         NextReg::write(NextReg::selected, data);
+        ioContentionLate(false);
+        return;
+      }
+      if (address == 0x123B) {
+        NextReg::writeLayer2Port(data);
         ioContentionLate(false);
         return;
       }

@@ -12,6 +12,7 @@ pico-next: ZX Spectrum Next (TBBlue) NextReg register file
 #include "CPU.h"
 #include "ESPectrum.h"
 #include "Video.h"
+#include "NextVideo.h"
 #include "Debug.h"
 
 #pragma GCC optimize("O3")
@@ -22,6 +23,7 @@ uint8_t NextReg::selected = 0;
 uint8_t NextReg::port7FFD = 0;
 uint8_t NextReg::portDFFD = 0;
 uint8_t NextReg::port1FFD = 0;
+uint8_t NextReg::port123B = 0;
 
 bool     NextReg::lineIrqEnabled = false;
 bool     NextReg::ulaIrqDisabled = false;
@@ -35,6 +37,8 @@ void NextReg::reset(bool hard) {
     port7FFD = 0;
     portDFFD = 0;
     port1FFD = 0;
+    port123B = 0;
+    MemESP::wr_overlay_active = false;
     lineIrqEnabled = false;
     ulaIrqDisabled = false;
     lineIrqLine = 0;
@@ -85,6 +89,19 @@ void NextReg::write(uint8_t r, uint8_t v) {
         case 0x23: // Line interrupt value LSB
             lineIrqLine = (lineIrqLine & 0x100) | v;
             break;
+        case 0x12: case 0x13: // Layer 2 active/shadow bank
+            updateLayer2Window();
+            break;
+        case 0x18: case 0x19: case 0x1A: case 0x1B: // clip windows
+            NEXTVID::clipWrite(r - 0x18, v);
+            break;
+        case 0x1C: // clip window index reset
+            NEXTVID::clipIndexReset(v);
+            break;
+        case 0x40: NEXTVID::palIndex(v);   break;
+        case 0x41: NEXTVID::palValue8(v);  break;
+        case 0x43: NEXTVID::palControl(v); break;
+        case 0x44: NEXTVID::palValue9(v);  break;
         case 0x50: case 0x51: case 0x52: case 0x53:
         case 0x54: case 0x55: case 0x56: case 0x57:
             MemESP::applyMMU(r - 0x50, v);
@@ -110,6 +127,28 @@ uint8_t NextReg::read(uint8_t r) {
             return MemESP::mmu[r - 0x50];
         default:   return reg[r];
     }
+}
+
+// ===== Layer 2 access port (0x123B) =====
+
+void NextReg::writeLayer2Port(uint8_t v) {
+    port123B = v;
+    updateLayer2Window();
+}
+
+void NextReg::updateLayer2Window() {
+    if (port123B & 0x01) { // write enable
+        uint8_t bank = (port123B & 0x08) ? reg[0x13] : reg[0x12];
+        uint8_t off = (port123B >> 6) & 3;
+        uint16_t page = (uint16_t)(bank + off) * 2;
+        if (page + 1 < MemESP::NEXT_PAGES && MemESP::nextRamReady) {
+            MemESP::wrOverlay[0] = MemESP::nextRamPtr[page];
+            MemESP::wrOverlay[1] = MemESP::nextRamPtr[page + 1];
+            MemESP::wr_overlay_active = true;
+            return;
+        }
+    }
+    MemESP::wr_overlay_active = false;
 }
 
 // ===== Legacy Spectrum paging, Next-style (implemented on top of the MMU) =====

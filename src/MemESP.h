@@ -203,6 +203,11 @@ public:
     static bool buildNextRam();    // carve Next RAM out of butter PSRAM
     static void applyMMU(uint8_t slot, uint8_t page);
     static void resetNextMapping();// apply power-on MMU defaults
+
+    // Layer 2 write-through window (port 0x123B): writes to 0x0000-0x3FFF
+    // land in Layer 2 RAM while reads still see the mapped ROM
+    static uint8_t* wrOverlay[2];
+    static bool wr_overlay_active;
 #endif
 
     static uint8_t readbyte(uint16_t addr);
@@ -241,6 +246,10 @@ inline void MemESP::writebyte(uint16_t addr, uint8_t data)
         CPU::portBasedBP = true;
     uint8_t page = addr >> 13;
 #if !PICO_RP2040
+    if (page <= 1 && wr_overlay_active) { // Layer 2 write window (port 0x123B)
+        wrOverlay[page][addr & 0x1fff] = data;
+        return;
+    }
     if (page <= 1 && divmmc_mapped) {
         if (page == 0) {
             // 0x0000-0x1FFF: writable only when MAPRAM (RAM bank)

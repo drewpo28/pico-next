@@ -49,6 +49,7 @@ visit https://zxespectrum.speccy.org/contacto
 #include "psram_spi.h"
 #if !PICO_RP2040
 #include "Z80DMA.h"
+#include "NextVideo.h"
 #endif
 extern "C" void graphics_set_palette(uint8_t i, uint32_t color888);
 extern "C" void vga_set_palette_entry_solid(uint8_t i, uint32_t color888);
@@ -1230,6 +1231,19 @@ void VIDEO::Reset() {
         else
             Draw_OSD43 = BottomBorder_OSD;
     }
+
+#if !PICO_RP2040
+    if (Z80Ops::isNext) {
+        // Next mode: scanline renderer replaces the beam-chasing pipeline.
+        // Placed last so nothing below re-points the Draw handlers.
+        gigascreen_enabled = false;
+        NEXTVID::Reset();
+        Draw = &NEXTVID::Tick;
+        Draw_Opcode = &NEXTVID::Tick_Opcode;
+        Draw_OSD169 = &NEXTVID::Tick;
+        DrawBorder = &NEXTVID::DrawBorderNop;
+    }
+#endif
 }
 
 extern size_t getFreeHeap(void);
@@ -1891,6 +1905,14 @@ IRAM_ATTR void VIDEO::Blank_Snow(unsigned int statestoadd, bool contended) { CPU
 IRAM_ATTR void VIDEO::Blank_Snow_Opcode(bool contended) { CPU::tstates += 4; }
 
 IRAM_ATTR void VIDEO::EndFrame() {
+
+#if !PICO_RP2040
+    if (Z80Ops::isNext) {
+        NEXTVID::EndFrame();
+        framecnt++;
+        return;
+    }
+#endif
 
     linedraw_cnt = lin_end;
 

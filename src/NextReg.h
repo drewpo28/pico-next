@@ -27,6 +27,7 @@ public:
     static uint8_t port7FFD;
     static uint8_t portDFFD;
     static uint8_t port1FFD;
+    static uint8_t port123B;     // Layer 2 access port
 
     // Line interrupt state (nextreg 0x22/0x23)
     static bool     lineIrqEnabled;
@@ -41,6 +42,10 @@ public:
     static void write7FFD(uint8_t v);
     static void writeDFFD(uint8_t v);
     static void write1FFD(uint8_t v);
+
+    // Layer 2 access port 0x123B: write-through window at 0x0000-0x3FFF
+    static void writeLayer2Port(uint8_t v);
+    static void updateLayer2Window();
 
     // Raster position for reg 0x1E/0x1F reads
     static uint16_t activeLine();

@@ -510,6 +510,12 @@ private:
     // LDD
     static void ldd(void);
 
+    // Z80N (ZX Spectrum Next) block transfer helpers
+    static void ldix(void);
+    static void lddx(void);
+    static void ldws(void);
+    static void ldpirx(void);
+
     // CPI
     static void cpi(void);
 

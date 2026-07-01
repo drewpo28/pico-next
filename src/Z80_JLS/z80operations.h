@@ -38,6 +38,7 @@ public:
 
     static bool is48;
     static bool is128;
+    static bool isNext;
 };
 
 #endif // Z80OPERATIONS_H

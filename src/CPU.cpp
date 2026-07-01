@@ -72,6 +72,7 @@ bool CPU::paused = false;
 
 bool Z80Ops::is48;
 bool Z80Ops::is128;
+bool Z80Ops::isNext = false;
 
 void CPU::updateStatesInFrame() {
     // Our emulator's baseline ULA timings correspond to the Late variant (Issue 3

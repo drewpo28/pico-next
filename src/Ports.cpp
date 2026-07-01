@@ -54,6 +54,7 @@ visit https://zxespectrum.speccy.org/contacto
 #include "Z80DMA.h"
 #if !PICO_RP2040
 #include "DivMMC.h"
+#include "NextReg.h"
 #include "hardware/gpio.h"
 #include "sdcard.h"
 #endif
@@ -102,6 +103,8 @@ IRAM_ATTR uint8_t Ports::getFloatBusData48() {
 
   return (VIDEO::grmem[VIDEO::offBmp[line] + hpoffset]);
 }
+
+IRAM_ATTR uint8_t Ports::getFloatBusDataNext() { return 0xFF; }
 
 IRAM_ATTR uint8_t Ports::getFloatBusData128() {
 
@@ -194,6 +197,11 @@ IRAM_ATTR uint8_t Ports::input(uint16_t address) {
   } else {
     ioContentionLate(MemESP::ramContended[rambank]);
 #if !PICO_RP2040
+    // ZX Next register access ports
+    if (Z80Ops::isNext) {
+      if (address == 0x243B) return NextReg::selected;
+      if (address == 0x253B) return NextReg::read(NextReg::selected);
+    }
     // ULA+ data port read
     if (Config::ulaplus && address == 0xFF3B) {
       uint8_t reg = VIDEO::ulaplus_reg;
@@ -218,7 +226,9 @@ IRAM_ATTR uint8_t Ports::input(uint16_t address) {
       return VIDEO::timex_port_ff;
     }
     // Z80 DMA / zxnDMA port read: listen on both 0x0B and 0x6B
-    if (Config::dma_mode && ((address & 0xFF) == 0x0B || (address & 0xFF) == 0x6B)) {
+    // (Next always has zxnDMA on 0x6B)
+    if ((Config::dma_mode && ((address & 0xFF) == 0x0B || (address & 0xFF) == 0x6B)) ||
+        (Z80Ops::isNext && (address & 0xFF) == 0x6B)) {
       ioContentionLate(MemESP::ramContended[rambank]);
       return Z80DMA::readPort();
     }
@@ -319,7 +329,9 @@ IRAM_ATTR uint8_t Ports::input(uint16_t address) {
     }
     {
       data = getFloatBusData();
-      if ((!Z80Ops::is48) && ((address & 0x8002) == 0)) {
+      // 128K-only quirk: reading 0x7FFD re-writes the floating bus value back
+      // into the paging register. Does not apply to 48K or Next.
+      if ((!Z80Ops::is48) && (!Z80Ops::isNext) && ((address & 0x8002) == 0)) {
         // //  Solo en el modelo 128K, pero no en los +2/+2A/+3, si se lee el
         // puerto
         // //  0x7ffd, el valor leído es reescrito en el puerto 0x7ffd.
@@ -431,6 +443,29 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
     VIDEO::Draw(3, true); // I/O Contention (Late)
   } else {
 #if !PICO_RP2040
+    // ZX Next register access + legacy paging extension ports
+    if (Z80Ops::isNext) {
+      if (address == 0x243B) {
+        NextReg::selected = data;
+        ioContentionLate(false);
+        return;
+      }
+      if (address == 0x253B) {
+        NextReg::write(NextReg::selected, data);
+        ioContentionLate(false);
+        return;
+      }
+      if (address == 0xDFFD) {
+        NextReg::writeDFFD(data);
+        ioContentionLate(false);
+        return;
+      }
+      if ((address & 0xF002) == 0x1000) { // 0x1FFD (+3 paging)
+        NextReg::write1FFD(data);
+        ioContentionLate(false);
+        return;
+      }
+    }
     // ULA+ ports (odd addresses: 0xBF3B register select, 0xFF3B data)
     if (Config::ulaplus) {
       if (address == 0xBF3B) {
@@ -479,7 +514,9 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
       return;
     }
     // Z80 DMA / zxnDMA port write: listen on both 0x0B and 0x6B
-    if (Config::dma_mode && (a8 == 0x0B || a8 == 0x6B)) {
+    // (Next always has zxnDMA on 0x6B)
+    if ((Config::dma_mode && (a8 == 0x0B || a8 == 0x6B)) ||
+        (Z80Ops::isNext && a8 == 0x6B)) {
       Z80DMA::writePort(data);
       ioContentionLate(MemESP::ramContended[rambank]);
       return;
@@ -605,6 +642,15 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
   }
   // 128K paging — port 0x7FFD
   // ==================================================================
+#if !PICO_RP2040
+  if (Z80Ops::isNext) {
+    // Next decodes 0x7FFD +2A/+3-style (A15=0, A14=1, A1=0) and implements
+    // it on top of the MMU
+    if ((address & 0xC002) == 0x4000)
+      NextReg::write7FFD(data);
+    return;
+  }
+#endif
   if ((!Z80Ops::is48) && ((address & 0x8002) == 0)) { // 8002 !-> 7FFD
     if (!MemESP::pagingLock) {
       uint8_t D5 = bitRead(data, 5);

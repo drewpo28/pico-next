@@ -808,7 +808,7 @@ const int bluPins[] = {BLU_PINS_6B};
 
 void VIDEO::vgataskinit(void *unused) {
     uint8_t Mode;
-    Mode = 16 + ((Config::arch == "48K") ? 0 : (Config::arch == "128K" ? 2 : 4)) + (Config::aspect_16_9 ? 1 : 0);
+    Mode = 16 + ((Config::arch == "48K") ? 0 : (Config::arch == "128K" || Config::arch == "Next" ? 2 : 4)) + (Config::aspect_16_9 ? 1 : 0);
     OSD::scrW = vidmodes[Mode][vmodeproperties::hRes];
     OSD::scrH = vidmodes[Mode][vmodeproperties::vRes] / vidmodes[Mode][vmodeproperties::vDiv];
     vga.useInterrupt_flag = true;
@@ -977,14 +977,14 @@ void VIDEO::changeMode() {
         switch (Config::vga_video_mode) {
             case Config::VM_640x480_50:
                 if (Config::arch == "48K") video_mode = 2;
-                else if (Config::arch == "128K") video_mode = 3;
+                else if (Config::arch == "128K" || Config::arch == "Next") video_mode = 3;
                 else video_mode = 1;
                 break;
             case Config::VM_720x480_60: video_mode = 7; break;
             case Config::VM_720x576_60: video_mode = 8; break;
             case Config::VM_720x576_50:
                 if (Config::arch == "48K") video_mode = 5;
-                else if (Config::arch == "128K") video_mode = 6;
+                else if (Config::arch == "128K" || Config::arch == "Next") video_mode = 6;
                 else video_mode = 4;
                 break;
             default: video_mode = 0; break;
@@ -994,14 +994,14 @@ void VIDEO::changeMode() {
             case Config::VM_640x480_60: video_mode = 0; break;
             case Config::VM_640x480_50:
                 if (Config::arch == "48K") video_mode = 2;
-                else if (Config::arch == "128K") video_mode = 3;
+                else if (Config::arch == "128K" || Config::arch == "Next") video_mode = 3;
                 else video_mode = 1;
                 break;
             case Config::VM_720x480_60: video_mode = 7; break;
             case Config::VM_720x576_60: video_mode = 8; break;
             case Config::VM_720x576_50:
                 if (Config::arch == "48K") video_mode = 5;
-                else if (Config::arch == "128K") video_mode = 6;
+                else if (Config::arch == "128K" || Config::arch == "Next") video_mode = 6;
                 else video_mode = 4;
                 break;
             default: video_mode = 0; break;
@@ -1107,7 +1107,8 @@ void VIDEO::Reset() {
         Draw_OSD169 = MainScreen;
         Draw_OSD43 = BottomBorder;
         DrawBorder = TopBorder_Blank;
-    } else if (Config::arch == "128K") {
+    } else { // 128K and Next (Next uses 128K ULA timings until it grows
+             // its own scanline renderer)
         tStatesPerLine = TSTATES_PER_LINE_128;
         tStatesScreen = TS_SCREEN_128;
         tStatesBorder = isFullBorder ? (isFullBorder240 ? TS_BORDER_360x240_128 : TS_BORDER_360x288_128)

@@ -63,6 +63,7 @@ visit https://zxespectrum.speccy.org/contacto
 #include "Debug.h"
 #if !PICO_RP2040
 #include "DivMMC.h"
+#include "NextReg.h"
 #endif
 #include "Midi.h"
 #include "MidiSynth.h"
@@ -603,6 +604,14 @@ void ESPectrum::setup() {
     }
   }
 
+#if !PICO_RP2040
+  // Spectrum Next needs its 1.75MB RAM (plus DivMMC banks) in butter PSRAM
+  if (Config::arch == "Next" && butter_psram_size() < (2u << 20)) {
+    Debug::log("setup: Next requires 2MB+ butter PSRAM, falling back to 128K");
+    Config::arch = "128K";
+  }
+#endif
+
   //=======================================================================================
   // INIT PS/2 KEYBOARD
   //=======================================================================================
@@ -667,6 +676,20 @@ void ESPectrum::setup() {
     // Pages 5,7 historically not counted — leave them untracked.
     ram_pages += 2;
     Debug::log("setup: ext_ram: pages 4-7 in static SRAM, freeHeap=%u", getFreeHeap());
+#if !PICO_RP2040
+    if (Config::arch == "Next") {
+      // Next mode: 8K page table over static SRAM (banks 0-7) + butter PSRAM
+      // carve-out (banks 8-111). Legacy extended pages are not allocated, so
+      // Murmuzavr extended paging (port 0xAFF7) must stay disabled.
+      MEM_PG_CNT = 64;
+      if (!MemESP::buildNextRam()) {
+        Debug::log("setup: Next RAM carve failed, falling back to 128K");
+        Config::arch = "128K";
+        for (size_t i = 8; i < (MEM_PG_CNT + 2); ++i)
+          assign_ram(i);
+      }
+    } else
+#endif
     for (size_t i = 8; i < (MEM_PG_CNT + 2); ++i) {
       assign_ram(i);
     }
@@ -706,6 +729,13 @@ void ESPectrum::setup() {
   MemESP::plug16(1, MemESP::ram[5].direct(), true);
   MemESP::plug16(2, MemESP::ram[2].sync(2), false);
   MemESP::plug16(3, MemESP::ram[MemESP::bankLatch].sync(3), false);
+
+#if !PICO_RP2040
+  if (Config::arch == "Next" && MemESP::nextRamReady) {
+    NextReg::reset(true);
+    MemESP::resetNextMapping();
+  }
+#endif
 
   // if (Config::arch == "48K") MemESP::pagingLock = 1; else MemESP::pagingLock
   // = 0;
@@ -889,6 +919,13 @@ void ESPectrum::reset(uint8_t romInUse) {
   MemESP::plug16(1, MemESP::ram[5].direct(), true);
   MemESP::plug16(2, MemESP::ram[2].sync(2), false);
   MemESP::plug16(3, MemESP::ram[0].sync(3), false);
+
+#if !PICO_RP2040
+  if (Config::arch == "Next" && MemESP::nextRamReady) {
+    NextReg::reset(false);
+    MemESP::resetNextMapping();
+  }
+#endif
 
   MemESP::pagingLock = Config::arch == "48K" ? 1 : 0;
 

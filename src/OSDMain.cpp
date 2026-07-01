@@ -2754,9 +2754,28 @@ void OSD::do_OSD(fabgl::VirtualKey KeytoESP, bool ALT, bool CTRL) {
                                 menu_curopt = 1;
                                 menu_level = 2;
                             }
-                        } else if (arch_num == 3) { // Spectrum Next (stub — pending)
-                            // Placeholder for upcoming Spectrum Next emulator.
-                            // No handler yet — just keep current machine.
+                        } else if (arch_num == 3) { // Spectrum Next
+#if !PICO_RP2040
+                            if (butter_psram_size() < (2u << 20)) {
+                                OSD::osdCenteredMsg("Spectrum Next needs 2MB+ PSRAM", LEVEL_WARN, 2000);
+                            } else if (Config::arch != "Next") {
+                                // RAM layout changes (butter PSRAM carve-out
+                                // happens in setup) — reboot like Murmuzavr
+                                if (confirmReboot(OSD_DLG_APPLYREBOOT)) {
+                                    Config::arch = "Next";
+                                    Config::romSet = "Next";
+                                    Config::ram_file = "none";
+                                    // one-shot override when a preferred arch is pinned
+                                    if (Config::pref_arch != "Last" && Config::pref_arch != "Next")
+                                        Config::pref_arch += "R";
+                                    Config::save();
+                                    OSD::esp_hard_reset();
+                                    return;
+                                }
+                            }
+#else
+                            OSD::osdCenteredMsg("Spectrum Next needs RP2350", LEVEL_WARN, 2000);
+#endif
                             menu_curopt = arch_num;
                             menu_saverect = false;
                         } else if (ext_ram && arch_num == 4) { // Murmuzavr

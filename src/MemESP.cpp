@@ -313,5 +313,62 @@ uint8_t* MemESP::page0_hi = nullptr;
 bool MemESP::divmmc_mapped = false;
 bool* MemESP::divmmc_hi_dirty = nullptr;
 bool* MemESP::divmmc_lo_dirty = nullptr;
+
+// ===== ZX Spectrum Next MMU =====
+
+uint8_t* MemESP::nextRamPtr[MemESP::NEXT_PAGES];
+uint8_t  MemESP::mmu[8];
+bool     MemESP::nextRamReady = false;
+
+// Unmapped MMU pages read 0xFF (open bus). Lives in flash (.rodata), so the
+// XIP-address write guard in writebyte() blocks writes to it automatically.
+struct OpenBusPage {
+    uint8_t b[0x2000];
+    constexpr OpenBusPage() : b() {
+        for (unsigned i = 0; i < sizeof(b); i++) b[i] = 0xFF;
+    }
+};
+static constexpr OpenBusPage open_bus_page;
+
+// Carve the Next RAM page table. Banks 0-7 (pages 0-15) point into the
+// static SRAM Z80 pages so VIDEO::grmem and the 16-color rasterizer keep
+// working; banks 8-111 (pages 16-223) take 1664K of butter PSRAM, accounted
+// through butter_pages so the DivMMC allocator composes on top.
+bool MemESP::buildNextRam() {
+    size_t needed = (size_t)(NEXT_PAGES - 16) * 0x2000;
+    size_t avail = butter_psram_size();
+    size_t used = (size_t)butter_pages * MEM_PG_SZ;
+    if (avail < used + needed) return false;
+    for (int b = 0; b < 8; b++) {
+        nextRamPtr[b * 2]     = ram[b].direct();
+        nextRamPtr[b * 2 + 1] = ram[b].direct() + 0x2000;
+    }
+    uint8_t* base = (uint8_t*)PSRAM_DATA + used;
+    for (int pg = 16; pg < NEXT_PAGES; pg++)
+        nextRamPtr[pg] = base + (size_t)(pg - 16) * 0x2000;
+    butter_pages += (NEXT_PAGES - 16) / 2; // account in 16K units
+    nextRamReady = true;
+    return true;
+}
+
+void MemESP::applyMMU(uint8_t slot, uint8_t page) {
+    slot &= 7;
+    mmu[slot] = page;
+    uint8_t* p;
+    if (page == 0xFF && slot <= 1) {
+        p = rom[romInUse].direct() + slot * 0x2000;
+    } else if (page < NEXT_PAGES && nextRamPtr[page]) {
+        p = nextRamPtr[page];
+    } else {
+        p = (uint8_t*)open_bus_page.b;
+    }
+    ramCurrent[slot] = p;
+    ramContended[slot] = false; // Next has no contention
+}
+
+void MemESP::resetNextMapping() {
+    static const uint8_t def[8] = { 0xFF, 0xFF, 10, 11, 4, 5, 0, 1 };
+    for (int i = 0; i < 8; i++) applyMMU(i, def[i]);
+}
 #endif
 

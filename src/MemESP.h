@@ -191,6 +191,18 @@ public:
     static bool divmmc_mapped;     // DivMMC memory currently visible at page 0
     static bool* divmmc_hi_dirty;  // swap mode: points to slot_dirty[] for page0_hi slot
     static bool* divmmc_lo_dirty;  // swap mode: points to slot_dirty[] for page0_lo slot
+
+    // ZX Spectrum Next MMU (8K pages, nextreg 0x50-0x57)
+    // 224 pages = 1.75 MB. Banks 0-7 (classic 128K) stay in static SRAM via
+    // ram[0..7]; banks 8-111 are carved from butter PSRAM at boot.
+    static constexpr int NEXT_PAGES = 224;
+    static uint8_t* nextRamPtr[NEXT_PAGES];
+    static uint8_t  mmu[8];        // current MMU mapping; 0xFF = ROM (slots 0/1)
+    static bool     nextRamReady;  // buildNextRam() completed
+
+    static bool buildNextRam();    // carve Next RAM out of butter PSRAM
+    static void applyMMU(uint8_t slot, uint8_t page);
+    static void resetNextMapping();// apply power-on MMU defaults
 #endif
 
     static uint8_t readbyte(uint16_t addr);

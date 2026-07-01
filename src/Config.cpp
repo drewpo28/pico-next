@@ -166,6 +166,15 @@ void Config::requestMachine(const string& newArch, const string& newRomSet)
         } else
             MemESP::rom[0].assign_rom(gb_rom_0_sinclair_48k);
     }
+#if !PICO_RP2040
+    else if (arch == "Next") {
+        // ZX Spectrum Next. Until the real Next ROMs are loaded from SD the
+        // machine boots the 128K ROM pair (enough for .NEX/.SNA + esxDOS).
+        romSet = "Next";
+        MemESP::rom[0].assign_rom(gb_rom_0_sinclair_128k);
+        MemESP::rom[1].assign_rom(gb_rom_1_sinclair_128k);
+    }
+#endif
     else { // 128K (default)
         if (newRomSet=="") romSet = "128K"; else romSet = newRomSet;
         if (newRomSet=="") romSet128 = "128K"; else romSet128 = newRomSet;

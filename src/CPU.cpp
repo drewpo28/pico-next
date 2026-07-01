@@ -46,6 +46,7 @@ visit https://zxespectrum.speccy.org/contacto
 #include "Z80DMA.h"
 #if !PICO_RP2040
 #include "DivMMC.h"
+#include "NextReg.h"
 #endif
 
 // Place hot CPU functions in SRAM instead of XIP flash
@@ -108,12 +109,23 @@ void CPU::reset() {
         Ports::getFloatBusData = &Ports::getFloatBusData48;
         Z80Ops::is48 = true;
         Z80Ops::is128 = false;
+        Z80Ops::isNext = false;
         // Set emulation loop sync target
         ESPectrum::target = MICROS_PER_FRAME_48;
+#if !PICO_RP2040
+    } else if (Config::arch == "Next") {
+        // Next has no floating bus and uses 128K frame timing
+        Ports::getFloatBusData = &Ports::getFloatBusDataNext;
+        Z80Ops::is48 = false;
+        Z80Ops::is128 = false;
+        Z80Ops::isNext = true;
+        ESPectrum::target = MICROS_PER_FRAME_128;
+#endif
     } else { // 128K (default)
         Ports::getFloatBusData = &Ports::getFloatBusData128;
         Z80Ops::is48 = false;
         Z80Ops::is128 = true;
+        Z80Ops::isNext = false;
         // Set emulation loop sync target
         ESPectrum::target = MICROS_PER_FRAME_128;
     }
@@ -154,12 +166,19 @@ IRAM_ATTR void CPU::loop() {
     while (tstates < IntEnd) {
         Z80::execute();
 #if !PICO_RP2040
-        if (Config::dma_mode) Z80DMA::handleDMA();
+        if (Config::dma_mode || Z80Ops::isNext) Z80DMA::handleDMA();
 #endif
         BREAKPOINTS
     }
     BREAKPOINTS
     bool halted = Z80::isHalted();
+#if !PICO_RP2040
+    if (Z80Ops::isNext && NextReg::lineIrqEnabled) {
+        // Line IRQ can fire mid-frame: skip the exec_nocheck/FlushOnHalt fast
+        // paths and let the INT-checking tail loop run the whole frame
+        halted = false;
+    } else
+#endif
     if (!halted) {
         stFrame = statesInFrame - IntEnd;
         Z80::exec_nocheck();
@@ -171,7 +190,7 @@ IRAM_ATTR void CPU::loop() {
     while (tstates < statesInFrame) {
         Z80::execute();
 #if !PICO_RP2040
-        if (Config::dma_mode) Z80DMA::handleDMA();
+        if (Config::dma_mode || Z80Ops::isNext) Z80DMA::handleDMA();
 #endif
         BREAKPOINTS
     }
@@ -517,6 +536,27 @@ IRAM_ATTR bool Z80Ops::isActiveINT(void) {
     // mode (window wraps to the end of the previous frame).
     int32_t tmp = (int32_t)CPU::tstates;
     if (tmp >= (int32_t)CPU::statesInFrame) tmp -= CPU::statesInFrame;
+#if !PICO_RP2040
+    if (Z80Ops::isNext) {
+        // Frame (ULA) interrupt, unless masked via nextreg 0x22 bit 2
+        if (!NextReg::ulaIrqDisabled &&
+            (tmp >= CPU::IntStart) && (tmp < CPU::IntEnd))
+            return true;
+        // Line interrupt (nextreg 0x22/0x23): asserted for ~32 base T-states
+        // at the start of the programmed raster line
+        if (NextReg::lineIrqEnabled) {
+            uint8_t m = ESPectrum::multiplicator;
+            uint32_t lines = (CPU::statesInFrame >> m) / VIDEO::tStatesPerLine;
+            // reg 0x23 counts line 0 as the first pixel line; the frame
+            // tstate origin is 63 border/sync lines earlier (128K timing)
+            uint32_t startTs = (((NextReg::lineIrqLine + 63) % lines) * VIDEO::tStatesPerLine) << m;
+            uint32_t endTs = startTs + (32u << m);
+            if ((uint32_t)tmp >= startTs && (uint32_t)tmp < endTs)
+                return true;
+        }
+        return false;
+    }
+#endif
     if (CPU::IntStart < 0) {
         // Window straddles frame boundary: active if tmp < IntEnd OR tmp >= IntStart+statesInFrame
         if (tmp < CPU::IntEnd) return true;

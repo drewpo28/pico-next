@@ -1800,13 +1800,13 @@ bool Tape::FlashLoad() {
         int count = 0;
         int addr = Z80::getRegIX();
         int nBytes = Z80::getRegDE();
-        int addr2 = addr & 0x3fff;
-        uint8_t page = addr >> 14;
+        int addr2 = addr & 0x1fff;
+        uint8_t page = addr >> 13;
 
-        if ((addr2 + nBytes) <= MEM_PG_SZ) {
+        if ((addr2 + nBytes) <= 0x2000) {
             UINT br;
             uint8_t* p = MemESP::ramCurrent[page];
-            if ( p < (uint8_t*)0x11000000 || (page == 0 && !MemESP::page0ram) ) {
+            if ( p < (uint8_t*)0x11000000 || (page <= 1 && !MemESP::page0ram) ) {
                 f_lseek(tape, f_tell(tape) + nBytes);
             } else {
                 f_read(tape, &p[addr2], nBytes, &br);
@@ -1817,10 +1817,10 @@ bool Tape::FlashLoad() {
                 count++;
             }
         } else {
-            int chunk1 = MEM_PG_SZ - addr2;
+            int chunk1 = 0x2000 - addr2;
             int chunkrest = nBytes > (blockLen - 1) ? (blockLen - 1) : nBytes;
             do {
-                if ((page > 0) && (page < 4)) {
+                if ((page > 1) && (page < 8)) {
                     UINT br;
                     f_read(tape, &MemESP::ramCurrent[page][addr2], chunk1, &br);
                     for (int i=0; i < chunk1; i++) {
@@ -1837,7 +1837,7 @@ bool Tape::FlashLoad() {
                 }
                 addr2 = 0;
                 chunkrest = chunkrest - chunk1;
-                if (chunkrest > MEM_PG_SZ) chunk1 = MEM_PG_SZ; else chunk1 = chunkrest;
+                if (chunkrest > 0x2000) chunk1 = 0x2000; else chunk1 = chunkrest;
                 page++;
             } while (chunkrest > 0);
         }
@@ -1937,16 +1937,16 @@ bool Tape::FlashLoad() {
         int count = 0;
         int addr = Z80::getRegIX();
 
-        int addr2 = addr & 0x3fff;
-        uint8_t page = addr >> 14;
+        int addr2 = addr & 0x1fff;
+        uint8_t page = addr >> 13;
 
         // Limit read to what ROM requested or block has (minus flag)
         int readLen = nBytes < (blockLen - 1) ? nBytes : (blockLen - 1);
 
-        if ((addr2 + readLen) <= MEM_PG_SZ) {
+        if ((addr2 + readLen) <= 0x2000) {
             UINT br;
             uint8_t* p = MemESP::ramCurrent[page];
-            if ( p < (uint8_t*)0x11000000 || (page == 0 && !MemESP::page0ram) ) {
+            if ( p < (uint8_t*)0x11000000 || (page <= 1 && !MemESP::page0ram) ) {
                 f_lseek(tape, f_tell(tape) + readLen);
             } else {
                 f_read(tape, &p[addr2], readLen, &br);
@@ -1957,11 +1957,11 @@ bool Tape::FlashLoad() {
                 count++;
             }
         } else {
-            int chunk1 = MEM_PG_SZ - addr2;
+            int chunk1 = 0x2000 - addr2;
             int chunkrest = readLen;
             do {
                 if (chunk1 > chunkrest) chunk1 = chunkrest;
-                if ((page > 0) && (page < 4)) {
+                if ((page > 1) && (page < 8)) {
                     UINT br;
                     f_read(tape, &MemESP::ramCurrent[page][addr2], chunk1, &br);
                     for (int i=0; i < chunk1; i++) {
@@ -1978,7 +1978,7 @@ bool Tape::FlashLoad() {
                 }
                 addr2 = 0;
                 chunkrest -= chunk1;
-                chunk1 = chunkrest > MEM_PG_SZ ? MEM_PG_SZ : chunkrest;
+                chunk1 = chunkrest > 0x2000 ? 0x2000 : chunkrest;
                 page++;
             } while (chunkrest > 0);
         }
@@ -2072,17 +2072,17 @@ bool Tape::FlashLoad() {
     int count = 0;
     int addr = Z80::getRegIX();    // Address start
     int nBytes = Z80::getRegDE();  // Lenght
-    int addr2 = addr & 0x3fff;
-    uint8_t page = addr >> 14;
+    int addr2 = addr & 0x1fff;
+    uint8_t page = addr >> 13;
 
     // printf("nBytes: %d\n",nBytes);
 
-    if ((addr2 + nBytes) <= MEM_PG_SZ) {
+    if ((addr2 + nBytes) <= 0x2000) {
 
         // printf("Case 1\n");
         UINT br;
         uint8_t* p = MemESP::ramCurrent[page];
-        if ( p < (uint8_t*)0x11000000 || (page == 0 && !MemESP::page0ram) ) {
+        if ( p < (uint8_t*)0x11000000 || (page <= 1 && !MemESP::page0ram) ) {
             f_lseek(tape, f_tell(tape) + nBytes);
         } else {
             f_read(tape, &p[addr2], nBytes, &br);
@@ -2098,12 +2098,12 @@ bool Tape::FlashLoad() {
 
         // printf("Case 2\n");
 
-        int chunk1 = MEM_PG_SZ - addr2;
+        int chunk1 = 0x2000 - addr2;
         int chunkrest = nBytes > (blockLen - 1) ? (blockLen - 1) : nBytes;
 
         do {
 
-            if ((page > 0) && (page < 4)) {
+            if ((page > 1) && (page < 8)) {
                 UINT br;
                 f_read(tape, &MemESP::ramCurrent[page][addr2], chunk1, &br);
 
@@ -2125,7 +2125,7 @@ bool Tape::FlashLoad() {
 
             addr2 = 0;
             chunkrest = chunkrest - chunk1;
-            if (chunkrest > MEM_PG_SZ) chunk1 = MEM_PG_SZ; else chunk1 = chunkrest;
+            if (chunkrest > 0x2000) chunk1 = 0x2000; else chunk1 = chunkrest;
             page++;
 
         } while (chunkrest > 0);

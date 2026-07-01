@@ -702,15 +702,10 @@ void ESPectrum::setup() {
   MemESP::romLatch = 0;
   MemESP::newSRAM = false;
 
-  MemESP::ramCurrent[0] = MemESP::rom[MemESP::romInUse].direct();
-  MemESP::ramCurrent[1] = MemESP::ram[5].direct();
-  MemESP::ramCurrent[2] = MemESP::ram[2].sync(2);
-  MemESP::ramCurrent[3] = MemESP::ram[MemESP::bankLatch].sync(3);
-
-  MemESP::ramContended[0] = false;
-  MemESP::ramContended[1] = true;
-  MemESP::ramContended[2] = false;
-  MemESP::ramContended[3] = false;
+  MemESP::plug16(0, MemESP::rom[MemESP::romInUse].direct(), false);
+  MemESP::plug16(1, MemESP::ram[5].direct(), true);
+  MemESP::plug16(2, MemESP::ram[2].sync(2), false);
+  MemESP::plug16(3, MemESP::ram[MemESP::bankLatch].sync(3), false);
 
   // if (Config::arch == "48K") MemESP::pagingLock = 1; else MemESP::pagingLock
   // = 0;
@@ -890,15 +885,10 @@ void ESPectrum::reset(uint8_t romInUse) {
   MemESP::romLatch = 0;
   MemESP::newSRAM = false;
 
-  MemESP::ramCurrent[0] = MemESP::rom[romInUse].direct();
-  MemESP::ramCurrent[1] = MemESP::ram[5].direct();
-  MemESP::ramCurrent[2] = MemESP::ram[2].sync(2);
-  MemESP::ramCurrent[3] = MemESP::ram[0].sync(3);
-
-  MemESP::ramContended[0] = false;
-  MemESP::ramContended[1] = true;
-  MemESP::ramContended[2] = false;
-  MemESP::ramContended[3] = false;
+  MemESP::plug16(0, MemESP::rom[romInUse].direct(), false);
+  MemESP::plug16(1, MemESP::ram[5].direct(), true);
+  MemESP::plug16(2, MemESP::ram[2].sync(2), false);
+  MemESP::plug16(3, MemESP::ram[0].sync(3), false);
 
   MemESP::pagingLock = Config::arch == "48K" ? 1 : 0;
 

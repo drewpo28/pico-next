@@ -209,8 +209,7 @@ bool FileSNA::load(const string& sna_fn, const string& force_arch, const string&
         }
 
         MemESP::recoverPage0();
-        MemESP::ramCurrent[3] = MemESP::ram[MemESP::bankLatch].sync(3);
-        MemESP::ramContended[3] = (MemESP::bankLatch & 0x01) ? true: false;
+        MemESP::plug16(3, MemESP::ram[MemESP::bankLatch].sync(3), MemESP::bankLatch & 0x01);
 
         VIDEO::grmem = MemESP::videoLatch ? MemESP::ram[7].direct() : MemESP::ram[5].direct();
 
@@ -707,8 +706,7 @@ bool FileZ80::load(const string& z80_fn) {
             }
 
             MemESP::recoverPage0();
-            MemESP::ramCurrent[3] = MemESP::ram[MemESP::bankLatch].sync(3);
-            MemESP::ramContended[3] = (MemESP::bankLatch & 0x01) ? true: false;
+            MemESP::plug16(3, MemESP::ram[MemESP::bankLatch].sync(3), MemESP::bankLatch & 0x01);
 
             VIDEO::grmem = MemESP::videoLatch ? MemESP::ram[7].direct() : MemESP::ram[5].direct();
         }
@@ -903,8 +901,7 @@ void FileZ80::loader48() {
     MemESP::ram[2].cleanup();
 
     MemESP::recoverPage0();
-    MemESP::ramCurrent[3] = MemESP::ram[MemESP::bankLatch].sync(3);
-    MemESP::ramContended[3] = false;
+    MemESP::plug16(3, MemESP::ram[MemESP::bankLatch].sync(3), false);
 
     VIDEO::grmem = MemESP::ram[5].direct();
 
@@ -1025,8 +1022,7 @@ void FileZ80::loader128() {
     MemESP::ram[6].cleanup();
     
     MemESP::recoverPage0();
-    MemESP::ramCurrent[3] = MemESP::ram[MemESP::bankLatch].sync(3);
-    MemESP::ramContended[3] = (MemESP::bankLatch & 0x01) ? true: false;
+    MemESP::plug16(3, MemESP::ram[MemESP::bankLatch].sync(3), MemESP::bankLatch & 0x01);
 
     VIDEO::grmem = MemESP::videoLatch ? MemESP::ram[7].direct() : MemESP::ram[5].direct();
 

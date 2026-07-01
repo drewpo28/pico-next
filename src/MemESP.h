@@ -163,8 +163,18 @@ public:
 
     static bool newSRAM;
 
-    static uint8_t* ramCurrent[4];
-    static bool ramContended[4];
+    // 8 slots of 8K each (Next MMU granularity); legacy 16K pages occupy
+    // slot pairs via plug16()
+    static uint8_t* ramCurrent[8];
+    static bool ramContended[8];
+
+    // Plug a 16K block into 16K slot s16 (0..3) — two 8K slots at once
+    inline static void plug16(uint8_t s16, uint8_t* p, bool contended) {
+        ramCurrent[s16 * 2] = p;
+        ramCurrent[s16 * 2 + 1] = p + 0x2000;
+        ramContended[s16 * 2] = contended;
+        ramContended[s16 * 2 + 1] = contended;
+    }
 
     static uint8_t notMore128;
     static uint32_t page0ram;
@@ -189,8 +199,9 @@ public:
     static void writeword(uint16_t addr, uint16_t data);
 
     inline static void recoverPage0() {
-        MemESP::ramCurrent[0] = MemESP::newSRAM ? MemESP::ram[MEM_PG_CNT + MemESP::romLatch].sync(0) :
-                               (MemESP::page0ram ? MemESP::ram[0].sync(0) : MemESP::rom[MemESP::romInUse].direct());
+        uint8_t* p = MemESP::newSRAM ? MemESP::ram[MEM_PG_CNT + MemESP::romLatch].sync(0) :
+                    (MemESP::page0ram ? MemESP::ram[0].sync(0) : MemESP::rom[MemESP::romInUse].direct());
+        plug16(0, p, false);
     }
 };
 
@@ -199,13 +210,13 @@ public:
 inline uint8_t MemESP::readbyte(uint16_t addr) {
     if (Config::numMemReadBP > 0 && Config::hasBreakPoint(addr, Config::BP_MEM_READ))
         CPU::portBasedBP = true;
-    uint8_t page = addr >> 14;
+    uint8_t page = addr >> 13;
 #if !PICO_RP2040
-    if (page == 0 && divmmc_mapped) {
-        return (addr < 0x2000) ? page0_lo[addr] : page0_hi[addr & 0x1FFF];
+    if (page <= 1 && divmmc_mapped) {
+        return (page == 0) ? page0_lo[addr] : page0_hi[addr & 0x1FFF];
     }
 #endif
-    return ramCurrent[page][addr & 0x3fff];
+    return ramCurrent[page][addr & 0x1fff];
 }
 
 inline uint16_t MemESP::readword(uint16_t addr) {
@@ -216,10 +227,10 @@ inline void MemESP::writebyte(uint16_t addr, uint8_t data)
 {
     if (Config::numMemWriteBP > 0 && Config::hasBreakPoint(addr, Config::BP_MEM_WRITE))
         CPU::portBasedBP = true;
-    uint8_t page = addr >> 14;
+    uint8_t page = addr >> 13;
 #if !PICO_RP2040
-    if (page == 0 && divmmc_mapped) {
-        if (addr < 0x2000) {
+    if (page <= 1 && divmmc_mapped) {
+        if (page == 0) {
             // 0x0000-0x1FFF: writable only when MAPRAM (RAM bank)
             // In swap mode: divmmc_lo_dirty != null means heap bank (MAPRAM)
             if (divmmc_lo_dirty) {
@@ -236,7 +247,7 @@ inline void MemESP::writebyte(uint16_t addr, uint8_t data)
 #endif
     uint8_t* p = ramCurrent[page];
     if (p < (uint8_t*)0x11000000) return;
-    p[addr & 0x3fff] = data;
+    p[addr & 0x1fff] = data;
 }
 
 inline void MemESP::writeword(uint16_t addr, uint16_t data) {

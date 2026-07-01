@@ -47,17 +47,17 @@ uint8_t page;
 
 #if !PICO_RP2040
 #define PEEK8(result,address) \
- page = address >> 14; \
+ page = address >> 13; \
  VIDEO::Draw(3,MemESP::ramContended[page]); \
- if (page == 0 && MemESP::divmmc_mapped) \
-     result = ((address) < 0x2000) ? MemESP::page0_lo[address] : MemESP::page0_hi[(address) & 0x1FFF]; \
+ if (page <= 1 && MemESP::divmmc_mapped) \
+     result = (page == 0) ? MemESP::page0_lo[address] : MemESP::page0_hi[(address) & 0x1FFF]; \
  else \
-     result = MemESP::ramCurrent[page][address & 0x3fff];
+     result = MemESP::ramCurrent[page][address & 0x1fff];
 #else
 #define PEEK8(result,address) \
- page = address >> 14; \
+ page = address >> 13; \
  VIDEO::Draw(3,MemESP::ramContended[page]); \
- result = MemESP::ramCurrent[page][address & 0x3fff];
+ result = MemESP::ramCurrent[page][address & 0x1fff];
 #endif
 
 // miembros estáticos
@@ -954,7 +954,7 @@ IRAM_ATTR void Z80::check_trdos() {
         MemESP::romInUse = nmiDos_savedRomInUse;
         ESPectrum::trdos = nmiDos_savedTrdos;
         if (ESPectrum::trdos) {
-            MemESP::ramCurrent[0] = MemESP::rom[4].direct();
+            MemESP::plug16(0, MemESP::rom[4].direct(), false);
         } else {
             MemESP::recoverPage0();
         }
@@ -976,7 +976,7 @@ IRAM_ATTR void Z80::check_trdos() {
                 // TR-DOS ROM.
                 if (!Z80Ops::is48 && MemESP::romInUse == 1) {
                     MemESP::romInUse = 4;
-                    MemESP::ramCurrent[0] = MemESP::rom[4].direct();
+                    MemESP::plug16(0, MemESP::rom[4].direct(), false);
                     ESPectrum::trdos = true;
                 }
 
@@ -1130,7 +1130,7 @@ void Z80::doNMIDOS(void) {
     // Switch to TR-DOS ROM (slot 4) for Magic Button NMI
     // Note: Gluk ROM has no NMI handler (0x0066 = 0xFF filler) — it's RESET-only
     MemESP::romInUse = 4;
-    MemESP::ramCurrent[0] = MemESP::rom[4].direct();
+    MemESP::plug16(0, MemESP::rom[4].direct(), false);
     ESPectrum::trdos = true; // Protect ROM from 7FFD changes
 
     // Mark NMI-DOS in progress
@@ -1233,24 +1233,24 @@ IRAM_ATTR void Z80::exec_nocheck() {
 
         if (nbp > 0 && Config::hasBreakPoint(REG_PC, Config::BP_PC)) return;
 
-        uint8_t pg = REG_PCh >> 6;
+        uint8_t pg = REG_PCh >> 5;
         VIDEO::Draw_Opcode(MemESP::ramContended[pg]);
 #if !PICO_RP2040
         if (DivMMC::enabled) {
             DivMMC::preOpcFetch(REG_PC);
             // Fetch opcode from currently mapped memory
-            pg = REG_PCh >> 6; // re-read in case 0x3Dxx instant map changed it
-            if (pg == 0 && MemESP::divmmc_mapped) {
-                opCode = (REG_PC < 0x2000) ? MemESP::page0_lo[REG_PC] : MemESP::page0_hi[REG_PC & 0x1FFF];
+            pg = REG_PCh >> 5; // re-read in case 0x3Dxx instant map changed it
+            if (pg <= 1 && MemESP::divmmc_mapped) {
+                opCode = (pg == 0) ? MemESP::page0_lo[REG_PC] : MemESP::page0_hi[REG_PC & 0x1FFF];
             } else {
-                opCode = MemESP::ramCurrent[pg][REG_PC & 0x3fff];
+                opCode = MemESP::ramCurrent[pg][REG_PC & 0x1fff];
             }
             DivMMC::postOpcFetch();
-        } else if (pg == 0 && MemESP::divmmc_mapped) {
-            opCode = (REG_PC < 0x2000) ? MemESP::page0_lo[REG_PC] : MemESP::page0_hi[REG_PC & 0x1FFF];
+        } else if (pg <= 1 && MemESP::divmmc_mapped) {
+            opCode = (pg == 0) ? MemESP::page0_lo[REG_PC] : MemESP::page0_hi[REG_PC & 0x1FFF];
         } else
 #endif
-        opCode = MemESP::ramCurrent[pg][REG_PC & 0x3fff];
+        opCode = MemESP::ramCurrent[pg][REG_PC & 0x1fff];
 
         regR++;
         REG_PC++;

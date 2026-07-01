@@ -151,7 +151,7 @@ IRAM_ATTR uint8_t Ports::input(uint16_t address) {
   uint8_t data;
   if (Config::numPortReadBP > 0 && Config::hasBreakPoint(address, Config::BP_PORT_READ))
     CPU::portBasedBP = true;
-  uint8_t rambank = address >> 14;
+  uint8_t rambank = address >> 13;
   p_states = CPU::tstates;
 
   // Early contention depends on ADDRESS (contended memory?), not port type
@@ -338,8 +338,7 @@ IRAM_ATTR uint8_t Ports::input(uint16_t address) {
           }
           if (MemESP::bankLatch != page) {
             MemESP::bankLatch = page;
-            MemESP::ramCurrent[3] = MemESP::ram[page].sync(3);
-            MemESP::ramContended[3] = page & 0x01 ? true : false;
+            MemESP::plug16(3, MemESP::ram[page].sync(3), page & 0x01);
           }
           if (MemESP::videoLatch != bitRead(data, 3)) {
             MemESP::videoLatch = bitRead(data, 3);
@@ -363,7 +362,7 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
   int Audiobit;
   if (Config::numPortWriteBP > 0 && Config::hasBreakPoint(address, Config::BP_PORT_WRITE))
     CPU::portBasedBP = true;
-  uint8_t rambank = address >> 14;
+  uint8_t rambank = address >> 13;
 
   // Early contention depends on ADDRESS only (contended memory?), not port type.
   // Wiki: ULA port non-contended addr = N:1,C:3; contended addr = C:1,C:3
@@ -384,8 +383,7 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
         uint32_t pages = ram_pages + butter_pages + psram_pages + swap_pages;
         if (page < pages) { // W/A: protection of incorrect page selection logic
           MemESP::bankLatch = page;
-          MemESP::ramCurrent[3] = MemESP::ram[page].sync(3);
-          MemESP::ramContended[3] = (page & 0x01) ? true : false;
+          MemESP::plug16(3, MemESP::ram[page].sync(3), page & 0x01);
         }
       }
     }
@@ -622,8 +620,7 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
       }
       if (MemESP::bankLatch != page) {
         MemESP::bankLatch = page;
-        MemESP::ramCurrent[3] = MemESP::ram[page].sync(3);
-        MemESP::ramContended[3] = (page & 0x01) ? true : false;
+        MemESP::plug16(3, MemESP::ram[page].sync(3), page & 0x01);
       }
       MemESP::romLatch = bitRead(data, 4);
       if (!ESPectrum::trdos) {

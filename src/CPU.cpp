@@ -196,7 +196,7 @@ IRAM_ATTR void CPU::FlushOnHalt() {
 
     uint32_t stEnd = statesInFrame - IntEnd;
 
-    uint8_t page = Z80::getRegPC() >> 14;
+    uint8_t page = Z80::getRegPC() >> 13;
     if (MemESP::ramContended[page]) {
 
         while (tstates < stEnd ) {
@@ -237,7 +237,7 @@ IRAM_ATTR void CPU::FlushOnHalt() {
 
 // Read byte from RAM
 IRAM_ATTR uint8_t Z80Ops::peek8(uint16_t address) {
-    VIDEO::Draw(3, MemESP::ramContended[address >> 14]);
+    VIDEO::Draw(3, MemESP::ramContended[address >> 13]);
     return MemESP::readbyte(address);
 }
 
@@ -250,27 +250,27 @@ IRAM_ATTR uint8_t Z80Ops::fetchOpcode() {
 #if DEBUG
     dbg_last_pc = pc;
 #endif
-    uint8_t pg = pc >> 14;
+    uint8_t pg = pc >> 13;
     VIDEO::Draw_Opcode(MemESP::ramContended[pg]);
 #if !PICO_RP2040
     if (DivMMC::enabled) {
         DivMMC::preOpcFetch(pc);
-        pg = pc >> 14; // re-read in case instant map changed it
+        pg = pc >> 13; // re-read in case instant map changed it
         uint8_t opCode;
-        if (pg == 0 && MemESP::divmmc_mapped) {
-            opCode = (pc < 0x2000) ? MemESP::page0_lo[pc] : MemESP::page0_hi[pc & 0x1FFF];
+        if (pg <= 1 && MemESP::divmmc_mapped) {
+            opCode = (pg == 0) ? MemESP::page0_lo[pc] : MemESP::page0_hi[pc & 0x1FFF];
         } else {
-            opCode = MemESP::ramCurrent[pg][pc & 0x3fff];
+            opCode = MemESP::ramCurrent[pg][pc & 0x1fff];
         }
         DivMMC::postOpcFetch();
         return opCode;
     }
     // MB-02+: page0 mapped but DivMMC not active — check divmmc_mapped for fetch
-    if (pg == 0 && MemESP::divmmc_mapped) {
-        return (pc < 0x2000) ? MemESP::page0_lo[pc] : MemESP::page0_hi[pc & 0x1FFF];
+    if (pg <= 1 && MemESP::divmmc_mapped) {
+        return (pg == 0) ? MemESP::page0_lo[pc] : MemESP::page0_hi[pc & 0x1FFF];
     }
 #endif
-    return MemESP::ramCurrent[pg][pc & 0x3fff];
+    return MemESP::ramCurrent[pg][pc & 0x1fff];
 }
 
 // // Write byte to RAM
@@ -341,16 +341,16 @@ IRAM_ATTR uint8_t Z80Ops::fetchOpcode() {
 
 // Write byte to RAM
 IRAM_ATTR void Z80Ops::poke8(uint16_t address, uint8_t value) {
-    VIDEO::Draw(3, MemESP::ramContended[address >> 14]);
+    VIDEO::Draw(3, MemESP::ramContended[address >> 13]);
     MemESP::writebyte(address, value);
 }
 
 // Read word from RAM
 IRAM_ATTR uint16_t Z80Ops::peek16(uint16_t address) {
 
-    uint8_t page = address >> 14;
+    uint8_t page = address >> 13;
 
-    if (page == ((address + 1) >> 14)) {    // Check if address is between two different pages
+    if (page == ((address + 1) >> 13)) {    // Check if address is between two different pages
 
         if (MemESP::ramContended[page]) {
             VIDEO::Draw(3, true);
@@ -372,10 +372,10 @@ IRAM_ATTR uint16_t Z80Ops::peek16(uint16_t address) {
 
 // Write word to RAM
 IRAM_ATTR void Z80Ops::poke16(uint16_t address, RegisterPair word) {
-    uint8_t page = address >> 14;
-    uint16_t page_addr = address & 0x3fff;
+    uint8_t page = address >> 13;
+    uint16_t page_addr = address & 0x1fff;
 
-    if (page_addr < 0x3fff) {    // Check if address is between two different pages
+    if (page_addr < 0x1fff) {    // Check if address is between two different pages
         if (MemESP::ramContended[page]) {
             VIDEO::Draw(3, true);
             VIDEO::Draw(3, true);
@@ -503,7 +503,7 @@ IRAM_ATTR void Z80Ops::poke16(uint16_t address, RegisterPair word) {
 
 /* Put an address on bus lasting 'tstates' cycles */
 IRAM_ATTR void Z80Ops::addressOnBus(uint16_t address, int32_t wstates) {
-    if (MemESP::ramContended[address >> 14]) {
+    if (MemESP::ramContended[address >> 13]) {
         for (int idx = 0; idx < wstates; idx++)
             VIDEO::Draw(1, true);
     } else

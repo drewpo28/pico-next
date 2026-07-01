@@ -8,6 +8,7 @@
 // http://www.vetra.com/scancodes.html
 // https://wiki.osdev.org/PS/2_Keyboard
 //
+#include <stdio.h>
 #include "ps2kbd_mrmltr.h"
 #if KBD_CLOCK_PIN == 2
 #include "ps2kbd_mrmltr2.pio.h"

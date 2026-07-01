@@ -6013,10 +6013,10 @@ c:
                     // Pages: cycle value left — affects code view (ROM/bank switch)
                     if (pagesCursorRow == 0) { // PAGE0: ROM
                         if (MemESP::romInUse > 0) MemESP::romInUse--;
-                        MemESP::ramCurrent[0] = MemESP::rom[MemESP::romInUse].direct();
+                        MemESP::plug16(0, MemESP::rom[MemESP::romInUse].direct(), false);
                     } else if (pagesCursorRow == 1) { // PAGE3: RAM bank
                         MemESP::bankLatch = (MemESP::bankLatch - 1) & 7;
-                        MemESP::ramCurrent[3] = MemESP::ram[MemESP::bankLatch].sync(MemESP::bankLatch);
+                        MemESP::plug16(3, MemESP::ram[MemESP::bankLatch].sync(3), MemESP::bankLatch & 0x01);
                     } else if (pagesCursorRow == 2) { // VIDEO
                         MemESP::videoLatch = MemESP::videoLatch ? 0 : 1;
                     } else if (pagesCursorRow == 3) { // PAGING LOCK
@@ -6036,10 +6036,10 @@ c:
                     // Pages: cycle value right — affects code view (ROM/bank switch)
                     if (pagesCursorRow == 0) {
                         if (MemESP::romInUse < 3) MemESP::romInUse++;
-                        MemESP::ramCurrent[0] = MemESP::rom[MemESP::romInUse].direct();
+                        MemESP::plug16(0, MemESP::rom[MemESP::romInUse].direct(), false);
                     } else if (pagesCursorRow == 1) {
                         MemESP::bankLatch = (MemESP::bankLatch + 1) & 7;
-                        MemESP::ramCurrent[3] = MemESP::ram[MemESP::bankLatch].sync(MemESP::bankLatch);
+                        MemESP::plug16(3, MemESP::ram[MemESP::bankLatch].sync(3), MemESP::bankLatch & 0x01);
                     } else if (pagesCursorRow == 2) {
                         MemESP::videoLatch = MemESP::videoLatch ? 0 : 1;
                     } else if (pagesCursorRow == 3) {
@@ -8775,8 +8775,8 @@ void OSD::pokeDialog() {
     uint16_t address = Z80::getRegPC();
     snprintf(tmp1, 8, "%04X", address);
     char* tmp2 = tmp1 + 5;
-    uint8_t page = address >> 14;
-    snprintf(tmp2, 8, "%02X", MemESP::ramCurrent[page][address & 0x3fff]);
+    uint8_t page = address >> 13;
+    snprintf(tmp2, 8, "%02X", MemESP::ramCurrent[page][address & 0x1fff]);
 
     string dlgValues[5] = {
         "   -   ", // Bank
@@ -9006,8 +9006,8 @@ void OSD::pokeDialog() {
                     // Apply poke
                     if (dlgValues[0] == "   -   ") {
                         // Poke address between 16384 and 65535
-                        uint8_t page = address >> 14;
-                        MemESP::ramCurrent[page][address & 0x3fff] = value;
+                        uint8_t page = address >> 13;
+                        MemESP::ramCurrent[page][address & 0x1fff] = value;
                     } else {
                         // Poke address in bank
                         string bank = dlgValues[0];

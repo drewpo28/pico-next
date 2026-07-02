@@ -55,6 +55,12 @@ public:
     static void spritePatternWrite(uint8_t v); // port 0x5B write
     static void spriteAttrDirect(uint8_t byteIdx, uint8_t v); // nextreg 0x35-0x39
 
+    // Copper (nextreg 0x60-0x63)
+    static void copperDataWrite(uint8_t v);    // reg 0x60: byte at index++
+    static void copperIndexLo(uint8_t v);      // reg 0x61
+    static void copperControl(uint8_t v);      // reg 0x62: index MSB + mode
+    static void copperData16Write(uint8_t v);  // reg 0x63: 16-bit two-write
+
 private:
     static void ScanlineWork();
     static void RenderLine(int row);
@@ -71,6 +77,18 @@ private:
     static uint8_t  sprAttrSlot;         // attribute upload sprite index
     static uint8_t  sprAttrByte;         // attribute upload byte index
     static uint8_t  sprFlags;            // bit0 collision, bit1 overflow
+
+    // copper state
+    static void copperLine(uint16_t rasterLine);
+    static void RenderTilemapLine(uint8_t* fb, int row);
+    static uint8_t  copperMem[2048];     // 1024 big-endian instructions
+    static uint16_t copIndex;            // write index (bytes)
+    static uint16_t copPC;               // instruction counter
+    static uint8_t  copCtrl;             // reg 0x62 latch (bits 7:6 = mode)
+    static bool     copWaiting;
+    static uint16_t copWaitLine;
+    static bool     cop16Second;
+    static uint8_t  cop16First;
 
     // 4 palettes x 2 banks: 0=ULA1 1=L2-1 2=Spr1 3=TM1 4=ULA2 5=L2-2 6=Spr2 7=TM2
     static uint16_t rawPal[8][256];  // 9-bit RGB333

@@ -85,8 +85,13 @@ void CPU::updateStatesInFrame() {
         statesInFrame = TSTATES_PER_FRAME_48;
         IntStart = INT_START48 - earlyShift;
         IntEnd = INT_END48 - earlyShift;
-    } else { // 128K (default)
+    } else { // 128K and Next
         statesInFrame = TSTATES_PER_FRAME_128;
+#if !PICO_RP2040
+        // Next 60Hz display timing: 262 lines of 228 T-states
+        if (Config::arch == "Next" && (NextReg::reg[0x05] & 0x04))
+            statesInFrame = 228 * 262;
+#endif
         IntStart = INT_START128 - earlyShift;
         IntEnd = INT_END128 - earlyShift;
     }

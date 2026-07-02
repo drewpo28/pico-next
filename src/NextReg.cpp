@@ -73,6 +73,11 @@ void NextReg::write(uint8_t r, uint8_t v) {
     switch (r) {
         case 0x02: // Reset: bit1 = hard, bit0 = soft — latched only for now
             break;
+        case 0x05: { // Peripheral 1: bit 2 = 50/60 Hz
+            ESPectrum::target = (v & 0x04) ? 17067 : MICROS_PER_FRAME_128;
+            CPU::updateStatesInFrame();
+            break;
+        }
         case 0x07: { // CPU speed: 0=3.5, 1=7, 2=14, 3=28 MHz
             uint8_t m = v & 0x03;
             if (ESPectrum::multiplicator != m) {
@@ -112,6 +117,10 @@ void NextReg::write(uint8_t r, uint8_t v) {
         case 0x54: case 0x55: case 0x56: case 0x57:
             MemESP::applyMMU(r - 0x50, v);
             break;
+        case 0x60: NEXTVID::copperDataWrite(v);   break;
+        case 0x61: NEXTVID::copperIndexLo(v);     break;
+        case 0x62: NEXTVID::copperControl(v);     break;
+        case 0x63: NEXTVID::copperData16Write(v); break;
         default:
             // Remaining registers are latched; video/sprite/palette consumers
             // read NextReg::reg[] directly as they are implemented.

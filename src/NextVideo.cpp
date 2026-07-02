@@ -41,6 +41,15 @@ uint8_t  NEXTVID::sprAttrSlot = 0;
 uint8_t  NEXTVID::sprAttrByte = 0;
 uint8_t  NEXTVID::sprFlags = 0;
 
+uint8_t  NEXTVID::copperMem[2048];
+uint16_t NEXTVID::copIndex = 0;
+uint16_t NEXTVID::copPC = 0;
+uint8_t  NEXTVID::copCtrl = 0;
+bool     NEXTVID::copWaiting = false;
+uint16_t NEXTVID::copWaitLine = 0;
+bool     NEXTVID::cop16Second = false;
+uint8_t  NEXTVID::cop16First = 0;
+
 uint32_t NEXTVID::lineIdx = 0;
 uint32_t NEXTVID::totalLines = 311;
 uint32_t NEXTVID::nextLineTstate = 228;
@@ -196,6 +205,70 @@ void NEXTVID::spriteAttrDirect(uint8_t byteIdx, uint8_t v) {
     if (byteIdx < 5) sprAttr[sprAttrSlot][byteIdx] = v;
 }
 
+// ===== Copper =====
+
+void NEXTVID::copperDataWrite(uint8_t v) {
+    copperMem[copIndex] = v;
+    copIndex = (copIndex + 1) & 0x7FF;
+}
+
+void NEXTVID::copperIndexLo(uint8_t v) {
+    copIndex = (copIndex & 0x700) | v;
+}
+
+void NEXTVID::copperControl(uint8_t v) {
+    copIndex = ((v & 0x07) << 8) | (copIndex & 0xFF);
+    uint8_t prevMode = copCtrl >> 6, mode = v >> 6;
+    copCtrl = v;
+    if (mode != prevMode && mode != 0) {
+        copPC = 0;
+        copWaiting = false;
+    }
+}
+
+void NEXTVID::copperData16Write(uint8_t v) {
+    // reg 0x63: full instruction per two writes (MSB first), committed on
+    // the second byte, index auto-advances by one instruction
+    if (!cop16Second) {
+        cop16First = v;
+        cop16Second = true;
+    } else {
+        copperMem[copIndex & 0x7FE] = cop16First;
+        copperMem[(copIndex & 0x7FE) + 1] = v;
+        copIndex = (copIndex + 2) & 0x7FF;
+        cop16Second = false;
+    }
+}
+
+// Execute the copper program for one raster line: run MOVEs until an
+// unsatisfied WAIT. Instructions are big-endian:
+//   MOVE: 0RRRRRRR VVVVVVVV  — write V to nextreg R
+//   WAIT: 1HHHHHHL LLLLLLLL  — wait for line (H = horizontal, line granularity)
+IRAM_ATTR void NEXTVID::copperLine(uint16_t rasterLine) {
+    uint8_t mode = copCtrl >> 6;
+    if (mode == 0) return;
+    if (copWaiting) {
+        if (copWaitLine != rasterLine) return;
+        copWaiting = false;
+    }
+    int guard = 1024;
+    while (guard--) {
+        uint8_t hi = copperMem[copPC * 2];
+        uint8_t lo = copperMem[copPC * 2 + 1];
+        copPC = (copPC + 1) & 0x3FF;
+        if (hi & 0x80) {
+            uint16_t wl = ((uint16_t)(hi & 0x01) << 8) | lo;
+            if (wl != rasterLine) {
+                copWaiting = true;
+                copWaitLine = wl;
+                return;
+            }
+        } else if (hi | lo) { // 0x0000 = NOOP
+            NextReg::write(hi & 0x7F, lo);
+        }
+    }
+}
+
 // ===== geometry / frame control =====
 
 void NEXTVID::Reset() {
@@ -219,6 +292,12 @@ void NEXTVID::Reset() {
     sprAttrByte = 0;
     sprFlags = 0;
 
+    copIndex = 0;
+    copPC = 0;
+    copCtrl = 0;
+    copWaiting = false;
+    cop16Second = false;
+
     totalLines = CPU::statesInFrame ?
         ((CPU::statesInFrame >> ESPectrum::multiplicator) / VIDEO::tStatesPerLine) : 311;
     firstVisibleLine = (VIDEO::tStatesBorder + VIDEO::tStatesPerLine / 2) / VIDEO::tStatesPerLine;
@@ -236,6 +315,10 @@ IRAM_ATTR void NEXTVID::EndFrame() {
     lineIdx = 0;
     nextLineTstate = (uint32_t)VIDEO::tStatesPerLine << ESPectrum::multiplicator;
     totalLines = (CPU::statesInFrame >> ESPectrum::multiplicator) / VIDEO::tStatesPerLine;
+    if ((copCtrl >> 6) == 3) { // mode %11: restart the copper on vertical blank
+        copPC = 0;
+        copWaiting = false;
+    }
 }
 
 IRAM_ATTR void NEXTVID::Tick(unsigned int statestoadd, bool contended) {
@@ -253,6 +336,9 @@ void NEXTVID::DrawBorderNop() {}
 IRAM_ATTR void NEXTVID::ScanlineWork() {
     uint8_t m = ESPectrum::multiplicator;
     if (lineIdx < totalLines) {
+        // Copper runs before the line is drawn; raster line 0 = paper start
+        uint32_t paperStart = (uint32_t)(firstVisibleLine + paperTopRow);
+        copperLine((uint16_t)((lineIdx + totalLines - paperStart) % totalLines));
         int row = (int)lineIdx - firstVisibleLine;
         if (!skipFrame && row >= 0 && row < (int)VIDEO::vga.yres)
             RenderLine(row);
@@ -281,6 +367,9 @@ IRAM_ATTR void NEXTVID::RenderLine(int row) {
 
     if (y < 0 || y >= 192) {
         memset(fb, borderIdx, xres);
+        // tilemap covers the border area of its 320x256 window
+        if (NextReg::reg[0x6B] & 0x80)
+            RenderTilemapLine(fb, row);
         return;
     }
 
@@ -289,9 +378,18 @@ IRAM_ATTR void NEXTVID::RenderLine(int row) {
     memset(fb + xPaperOff + 256, borderIdx, xres - xPaperOff - 256);
 
     // ULA layer (classic attribute mode; ULANext later). ULA can be disabled
-    // via nextreg 0x68 bit 7 — border colour shows through.
+    // via nextreg 0x68 bit 7 — border colour shows through. LoRes (128x96,
+    // reg 0x15 bit 7) replaces the ULA output.
     uint8_t* p = fb + xPaperOff;
-    if (!(NextReg::reg[0x68] & 0x80)) {
+    if (NextReg::reg[0x15] & 0x80) {
+        uint8_t ly = (uint8_t)((y + NextReg::reg[0x33]) % 192) >> 1;
+        const uint8_t* base = VIDEO::grmem +
+            (ly < 48 ? ly * 128 : 0x2000 + (uint16_t)(ly - 48) * 128);
+        uint8_t sxl = NextReg::reg[0x32];
+        for (int x = 0; x < 256; x++)
+            p[x] = ulaLut[base[(uint8_t)(x + sxl) >> 1]];
+    }
+    else if (!(NextReg::reg[0x68] & 0x80)) {
         const uint8_t* bmp = VIDEO::grmem + VIDEO::offBmp[y];
         const uint8_t* att = VIDEO::grmem + VIDEO::offAtt[y];
         for (int col = 0; col < 32; col++) {
@@ -313,6 +411,10 @@ IRAM_ATTR void NEXTVID::RenderLine(int row) {
     } else {
         memset(fb + xPaperOff, borderIdx, 256);
     }
+
+    // Tilemap (over ULA/LoRes, under Layer 2 and sprites)
+    if (NextReg::reg[0x6B] & 0x80)
+        RenderTilemapLine(fb, row);
 
     // Layer 2 (256x192x8bpp), over ULA
     bool l2on = (NextReg::port123B & 0x02) || (NextReg::reg[0x69] & 0x80);
@@ -345,6 +447,54 @@ IRAM_ATTR void NEXTVID::RenderLine(int row) {
 
     if (!spritesUnderL2 && (NextReg::reg[0x15] & 0x01))
         RenderSpritesLine(fb, y);
+}
+
+// Tilemap: 40x32 (or 80x32 rendered horizontally halved) tiles of 8x8x4bpp.
+// Map and tile definitions live in bank 5 (offsets from nextreg 0x6E/0x6F).
+// The tilemap window is 320x256 and covers the border area around the paper.
+IRAM_ATTR void NEXTVID::RenderTilemapLine(uint8_t* fb, int row) {
+    uint8_t ctrl = NextReg::reg[0x6B];
+    int ty = row - (paperTopRow - 32);
+    if (ty < 0 || ty >= 256) return;
+    if (ty < clip[3][2] || ty > clip[3][3]) return;
+
+    bool cols80 = ctrl & 0x40;
+    bool noAttr = ctrl & 0x20;
+    const uint8_t* lutTM = lut[(ctrl & 0x10) ? 7 : 3];
+    uint8_t transp = NextReg::reg[0x4C] & 0x0F;
+    const uint8_t* bank = MemESP::ram[5].direct();
+    const uint8_t* map  = bank + (uint16_t)(NextReg::reg[0x6E] & 0x3F) * 256;
+    const uint8_t* defs = bank + (uint16_t)(NextReg::reg[0x6F] & 0x3F) * 256;
+    uint16_t scrollX = ((NextReg::reg[0x2F] & 3) << 8) | NextReg::reg[0x30];
+    uint8_t sy = (uint8_t)(ty + NextReg::reg[0x31]); // wraps at 256
+    int cols = cols80 ? 80 : 40;
+    int entrySz = noAttr ? 1 : 2;
+    const uint8_t* mrow = map + (sy >> 3) * cols * entrySz;
+    uint8_t inRow = sy & 7;
+    int xOrig = xPaperOff - 32;
+    int xres = VIDEO::vga.xres;
+    int cx1 = clip[3][0] * 2, cx2 = clip[3][1] * 2 + 1; // clip x in half-columns
+
+    for (int tx = 0; tx < 320; tx++) {
+        if (tx < cx1 || tx > cx2) continue;
+        int fx = xOrig + tx;
+        if (fx < 0 || fx >= xres) continue;
+        // 80-column mode: 640 source pixels rendered halved
+        uint16_t sx = cols80 ? (uint16_t)((tx * 2 + scrollX) % 640)
+                             : (uint16_t)((tx + scrollX) % 320);
+        const uint8_t* e = mrow + (sx >> 3) * entrySz;
+        uint8_t tile = e[0];
+        uint8_t attr = noAttr ? NextReg::reg[0x6C] : e[1];
+        if (attr & 0x01) continue; // ULA over this tile
+        uint8_t u = sx & 7, vv = inRow;
+        if (attr & 0x08) u = 7 - u;                              // X mirror
+        if (attr & 0x04) vv = 7 - vv;                            // Y mirror
+        if (attr & 0x02) { uint8_t t = u; u = vv; vv = 7 - t; }  // rotate
+        uint8_t b = defs[(uint16_t)tile * 32 + vv * 4 + (u >> 1)];
+        uint8_t pix = (u & 1) ? (b & 0x0F) : (b >> 4);
+        if (pix == transp) continue;
+        fb[fx] = lutTM[pix | (attr & 0xF0)];
+    }
 }
 
 // Render all visible sprites crossing paper line y (0-191). Sprite

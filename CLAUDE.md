@@ -1,5 +1,30 @@
 # pico-spec Project Memory
 
+## ZX Spectrum Next Emulation (arch "Next")
+
+### Architecture
+- **Machine gate**: `Z80Ops::isNext` (set in `CPU::reset` from `Config::arch == "Next"`); requires RP2350 + ≥2MB butter PSRAM (falls back to 128K). Selected via OSD machine menu (reboot flow like Murmuzavr).
+- **Memory**: global 8×8K slots `MemESP::ramCurrent[8]` (`addr>>13`, mask 0x1FFF) for ALL machines; legacy 16K paging via `MemESP::plug16()`. Next MMU: `nextRamPtr[224]` (banks 0-7 in static SRAM = `ram[0..7]`, banks 8-111 carved from butter PSRAM via `butter_pages` accounting), `applyMMU()`, nextreg 0x50-0x57. Unmapped pages → flash open-bus page (reads 0xFF, write-blocked by XIP guard).
+- **NextReg** (src/NextReg.cpp): ports 0x243B/0x253B; working regs: 0x05 (50/60Hz), 0x07 (turbo→`ESPectrum::multiplicator`), 0x12-0x17/0x70/0x71 (Layer2), 0x18-0x1C (clips), 0x1E/0x1F (raster), 0x22/0x23 (line IRQ), 0x34-0x39 (sprites), 0x40-0x44 (palettes), 0x4A-0x4C, 0x50-0x57 (MMU), 0x60-0x63 (Copper), 0x68/0x69/0x6B... (video), 0x8E (Spectrum mapping). Legacy paging 0x7FFD (+3-декод)/0xDFFD/0x1FFD поверх MMU.
+- **Z80N**: все опкоды в `decodeED()` (src/Z80_JLS.cpp) под `if (!Z80Ops::isNext) break;` — на легаси-машинах остаются NOP.
+- **Video** (src/NextVideo.cpp, NEXTVID): scanline renderer — `VIDEO::Draw` → `NEXTVID::Tick` трамплин, рендер строки при пересечении границы. Палитры: 4×2×256 RGB333 → LUT в стоковый G3R3B2 CLUT (индексы 17-219; 0-16 = OSD/Spectrum, 220-255 зарезервированы сканаутом). Слои: ULA/ULANext/LoRes → tilemap → Layer2 (256×192 row-major / 320×256 column-major) → sprites → L2 priority pass. Copper по строкам (WAIT line-точный). Sprites: 16K паттернов + 128×5 атрибутов в SRAM.
+- **0x123B**: Layer2 write-окно через `MemESP::wrOverlay[2]` в writebyte; Next ROM (PSRAM) write-protect через `next_rom_mask`.
+- **.NEX loader**: src/FileNEX.cpp, диспетчер в LoadSnapshot; из другой машины — ребут с автозагрузкой через `Config::ram_file`.
+- **NextZXOS ROMs**: `/roms/next/enNextZX.rom` (64K) + `enNxtmmc.rom` (8K) → butter-регион после RAM-страниц; 2-битный ROM select (7FFD bit4 + 1FFD bit2); divMMC automap использует MMC ROM. Без файлов — фолбэк на 128K ROM.
+- **Звук**: 3-й AY (`chip2`, выбор 0xFF/0xFE/0xFD на 0xFFFD + панорама `ay_next_pan[]`), DAC-порты 0x0F/0x1F/0x4F/0x5F/0xDF/0xFB/0xB3 → Covox-канал (моно-микс).
+- Отключено в Next-режиме: Gigascreen, Murmuzavr/0xAFF7 (`MEM_PG_CNT=64`), contention, float bus, persist-снапшоты.
+
+### Не реализовано / проверить на железе
+- Relative/unified спрайты (байт 4, тип-биты) — рендерятся как якоря; раскладку байта 4 сверить с Ped7g/ZXSpectrumNextTests.
+- 640×256×4bpp Layer2/tilemap-текстмод — non-goal (сканаут ≤360px, tilemap 80-col рисуется полурезом).
+- Alt-ROM (0x8C), конфиг-режим (0x10), программируемые divMMC-трапы (0xB8-0xBB) — латчи.
+- Горизонтальный WAIT копера — строчная гранулярность.
+- 28 МГц не в реальном времени при 504 МГц хоста (~60-80%).
+- Тест-план: сьюты Ped7g (Z80N → MMU/NextReg → Layer2/Sprites/Copper), SpecBong, NXtel, Warhawk; NextZXOS boot с SD.
+
+### Сборка в headless-окружении (Claude Code web)
+- github заблокирован скоупом: pico-sdk 2.1.1 + tinyusb — зеркала GitLab (hqnicolas/pico-sdk, embodme/tinyusb) в /home/user/pico-sdk; `-DPICO_NO_PICOTOOL=1` (ELF без UF2); в локальный SDK добавлен shim `pico_board_cmake_set` (env-only, не в репо).
+
 ## SAA1099 Emulation Key Findings
 
 ### Current implementation

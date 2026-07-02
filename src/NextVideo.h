@@ -48,13 +48,29 @@ public:
     static uint8_t clip[4][4];
     static uint8_t clipIdx[4];
 
+    // sprite interface (ports 0x303B / 0x57 / 0x5B, nextreg 0x35-0x39)
+    static void spriteSlotSelect(uint8_t v);   // port 0x303B write
+    static uint8_t spriteFlagsRead();          // port 0x303B read
+    static void spriteAttrWrite(uint8_t v);    // port 0x57 write
+    static void spritePatternWrite(uint8_t v); // port 0x5B write
+    static void spriteAttrDirect(uint8_t byteIdx, uint8_t v); // nextreg 0x35-0x39
+
 private:
     static void ScanlineWork();
     static void RenderLine(int row);
+    static void RenderSpritesLine(uint8_t* fb, int y);
     static void rebuildLut(uint8_t pal);
     static void setLutEntry(uint8_t pal, uint8_t idx, uint16_t rgb333);
     static void buildRemap();
     static void defaultPalettes();
+
+    // sprite state
+    static uint8_t  sprPatterns[16384];  // 64 patterns x 256B (4bpp: 128 x 128B)
+    static uint8_t  sprAttr[128][5];
+    static uint16_t sprPatWrite;         // pattern upload byte position
+    static uint8_t  sprAttrSlot;         // attribute upload sprite index
+    static uint8_t  sprAttrByte;         // attribute upload byte index
+    static uint8_t  sprFlags;            // bit0 collision, bit1 overflow
 
     // 4 palettes x 2 banks: 0=ULA1 1=L2-1 2=Spr1 3=TM1 4=ULA2 5=L2-2 6=Spr2 7=TM2
     static uint16_t rawPal[8][256];  // 9-bit RGB333

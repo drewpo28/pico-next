@@ -98,6 +98,12 @@ void NextReg::write(uint8_t r, uint8_t v) {
         case 0x1C: // clip window index reset
             NEXTVID::clipIndexReset(v);
             break;
+        case 0x34: // sprite slot select mirror
+            NEXTVID::spriteSlotSelect(v);
+            break;
+        case 0x35: case 0x36: case 0x37: case 0x38: case 0x39:
+            NEXTVID::spriteAttrDirect(r - 0x35, v);
+            break;
         case 0x40: NEXTVID::palIndex(v);   break;
         case 0x41: NEXTVID::palValue8(v);  break;
         case 0x43: NEXTVID::palControl(v); break;

@@ -34,6 +34,13 @@ bool    NEXTVID::pal9Second = false;
 uint8_t NEXTVID::pal9First = 0;
 uint8_t NEXTVID::palCtrl = 0;
 
+uint8_t  NEXTVID::sprPatterns[16384];
+uint8_t  NEXTVID::sprAttr[128][5];
+uint16_t NEXTVID::sprPatWrite = 0;
+uint8_t  NEXTVID::sprAttrSlot = 0;
+uint8_t  NEXTVID::sprAttrByte = 0;
+uint8_t  NEXTVID::sprFlags = 0;
+
 uint32_t NEXTVID::lineIdx = 0;
 uint32_t NEXTVID::totalLines = 311;
 uint32_t NEXTVID::nextLineTstate = 228;
@@ -146,6 +153,49 @@ void NEXTVID::clipIndexReset(uint8_t mask) {
         if (mask & (1 << w)) clipIdx[w] = 0;
 }
 
+// ===== sprites =====
+
+// Port 0x303B write: bits 5:0 select the pattern slot (bit 7 adds a 128-byte
+// half-offset for 4bpp patterns) and bits 6:0 the attribute slot.
+void NEXTVID::spriteSlotSelect(uint8_t v) {
+    sprPatWrite = (uint16_t)(v & 0x3F) * 256 + ((v & 0x80) ? 128 : 0);
+    sprAttrSlot = v & 0x7F;
+    sprAttrByte = 0;
+}
+
+uint8_t NEXTVID::spriteFlagsRead() {
+    uint8_t f = sprFlags;
+    sprFlags = 0; // collision/overflow flags clear on read
+    return f;
+}
+
+void NEXTVID::spriteAttrWrite(uint8_t v) {
+    uint8_t* a = sprAttr[sprAttrSlot];
+    a[sprAttrByte] = v;
+    // Auto-advance: 4-byte sprites move on after byte 3 unless byte 3
+    // requests the 5th attribute byte
+    if (sprAttrByte == 3 && !(v & 0x40)) {
+        a[4] = 0;
+        sprAttrByte = 0;
+        sprAttrSlot = (sprAttrSlot + 1) & 0x7F;
+    } else if (sprAttrByte == 4) {
+        sprAttrByte = 0;
+        sprAttrSlot = (sprAttrSlot + 1) & 0x7F;
+    } else {
+        sprAttrByte++;
+    }
+}
+
+void NEXTVID::spritePatternWrite(uint8_t v) {
+    sprPatterns[sprPatWrite] = v;
+    sprPatWrite = (sprPatWrite + 1) & 0x3FFF;
+}
+
+void NEXTVID::spriteAttrDirect(uint8_t byteIdx, uint8_t v) {
+    // nextreg 0x35-0x39 mirror: write byte N of the selected sprite
+    if (byteIdx < 5) sprAttr[sprAttrSlot][byteIdx] = v;
+}
+
 // ===== geometry / frame control =====
 
 void NEXTVID::Reset() {
@@ -162,6 +212,12 @@ void NEXTVID::Reset() {
         for (int i = 0; i < 4; i++) clip[w][i] = defclip[w][i];
         clipIdx[w] = 0;
     }
+
+    memset(sprAttr, 0, sizeof(sprAttr));
+    sprPatWrite = 0;
+    sprAttrSlot = 0;
+    sprAttrByte = 0;
+    sprFlags = 0;
 
     totalLines = CPU::statesInFrame ?
         ((CPU::statesInFrame >> ESPectrum::multiplicator) / VIDEO::tStatesPerLine) : 311;
@@ -258,8 +314,15 @@ IRAM_ATTR void NEXTVID::RenderLine(int row) {
         memset(fb + xPaperOff, borderIdx, 256);
     }
 
-    // Layer 2 (256x192x8bpp), over ULA (default SLU order)
-    if ((NextReg::port123B & 0x02) || (NextReg::reg[0x69] & 0x80)) {
+    // Layer 2 (256x192x8bpp), over ULA
+    bool l2on = (NextReg::port123B & 0x02) || (NextReg::reg[0x69] & 0x80);
+    uint8_t slu = (NextReg::reg[0x15] >> 2) & 7;
+    bool spritesUnderL2 = (slu == 1 || slu == 4); // L-S-U / L-U-S orders
+
+    if (spritesUnderL2 && (NextReg::reg[0x15] & 0x01))
+        RenderSpritesLine(fb, y);
+
+    if (l2on) {
         if (y >= clip[0][2] && y <= clip[0][3]) {
             uint16_t sy = y + NextReg::reg[0x17];
             if (sy >= 192) sy -= 192;
@@ -278,6 +341,81 @@ IRAM_ATTR void NEXTVID::RenderLine(int row) {
                 }
             }
         }
+    }
+
+    if (!spritesUnderL2 && (NextReg::reg[0x15] & 0x01))
+        RenderSpritesLine(fb, y);
+}
+
+// Render all visible sprites crossing paper line y (0-191). Sprite
+// coordinate space puts (32,32) at the paper top-left corner; rendering is
+// clipped to the paper area for now (sprites-over-border comes later).
+IRAM_ATTR void NEXTVID::RenderSpritesLine(uint8_t* fb, int y) {
+    const uint8_t* sprLut = lut[(palCtrl & 0x02) ? 6 : 2];
+    uint8_t transp = NextReg::reg[0x4B];
+    int sline = y + 32;
+    bool reverse = NextReg::reg[0x15] & 0x40; // bit6: sprite 0 drawn on top of 127
+    uint8_t coverage[32];
+    memset(coverage, 0, sizeof(coverage));
+    int rendered = 0;
+
+    // Default priority: lower sprite numbers on top — draw high numbers first
+    for (int i = 0; i < 128; i++) {
+        int s = reverse ? i : 127 - i;
+        const uint8_t* a = sprAttr[s];
+        if (!(a[3] & 0x80)) continue; // not visible
+        uint8_t a4 = (a[3] & 0x40) ? a[4] : 0;
+        // Relative/unified sprites (byte 4 type bits) not implemented yet —
+        // rendered as independent anchors
+        uint8_t yscale = (a4 >> 1) & 3;
+        uint8_t xscale = (a4 >> 3) & 3;
+        int sy = a[1] | ((a4 & 0x01) << 8);
+        int height = 16 << yscale;
+        int rowIn = sline - sy;
+        if (rowIn < 0 || rowIn >= height) {
+            if (sy + height > 511 && ((sline + 512 - sy) < height))
+                rowIn = sline + 512 - sy; // Y wrap
+            else
+                continue;
+        }
+        int sx = a[0] | ((a[2] & 0x01) << 8);
+        bool xmirror = a[2] & 0x08;
+        bool ymirror = a[2] & 0x04;
+        bool rotate  = a[2] & 0x02;
+        uint8_t palOfs = a[2] & 0xF0;
+        bool fourBit = a4 & 0x80;
+        uint16_t patBase = (uint16_t)(a[3] & 0x3F) * 256;
+        if (fourBit) patBase = (uint16_t)(a[3] & 0x3F) * 256 + ((a4 & 0x40) ? 128 : 0);
+
+        uint8_t v = rowIn >> yscale;
+        if (ymirror) v = 15 - v;
+        int width = 16 << xscale;
+        for (int px = 0; px < width; px++) {
+            int xPix = sx + px - 32; // paper coords
+            if (xPix < 0 || xPix > 255) continue;
+            if (xPix < clip[1][0] || xPix > clip[1][1]) continue;
+            if (y < clip[1][2] || y > clip[1][3]) continue;
+            uint8_t u = px >> xscale;
+            if (xmirror) u = 15 - u;
+            uint8_t uu = u, vv = v;
+            if (rotate) { uu = v; vv = 15 - u; }
+            uint8_t pix;
+            if (fourBit) {
+                uint8_t b = sprPatterns[(patBase + vv * 8 + (uu >> 1)) & 0x3FFF];
+                pix = (uu & 1) ? (b & 0x0F) : (b >> 4);
+                if (pix == (transp & 0x0F)) continue;
+                pix |= palOfs;
+            } else {
+                pix = sprPatterns[(patBase + vv * 16 + uu) & 0x3FFF];
+                if (pix == transp) continue;
+                pix = (uint8_t)(pix + palOfs);
+            }
+            uint8_t mask = 1 << (xPix & 7);
+            if (coverage[xPix >> 3] & mask) sprFlags |= 0x01; // collision
+            coverage[xPix >> 3] |= mask;
+            fb[xPaperOff + xPix] = sprLut[pix];
+        }
+        if (++rendered > 100) { sprFlags |= 0x02; break; } // per-line overflow
     }
 }
 

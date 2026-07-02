@@ -55,6 +55,7 @@ visit https://zxespectrum.speccy.org/contacto
 #if !PICO_RP2040
 #include "DivMMC.h"
 #include "NextReg.h"
+#include "NextVideo.h"
 #include "hardware/gpio.h"
 #include "sdcard.h"
 #endif
@@ -202,6 +203,7 @@ IRAM_ATTR uint8_t Ports::input(uint16_t address) {
       if (address == 0x243B) return NextReg::selected;
       if (address == 0x253B) return NextReg::read(NextReg::selected);
       if (address == 0x123B) return NextReg::port123B;
+      if (address == 0x303B) return NEXTVID::spriteFlagsRead();
     }
     // ULA+ data port read
     if (Config::ulaplus && address == 0xFF3B) {
@@ -458,6 +460,22 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
       }
       if (address == 0x123B) {
         NextReg::writeLayer2Port(data);
+        ioContentionLate(false);
+        return;
+      }
+      if (address == 0x303B) {
+        NEXTVID::spriteSlotSelect(data);
+        ioContentionLate(false);
+        return;
+      }
+      // Sprite upload ports decode the low byte only
+      if (a8 == 0x57) {
+        NEXTVID::spriteAttrWrite(data);
+        ioContentionLate(false);
+        return;
+      }
+      if (a8 == 0x5B) {
+        NEXTVID::spritePatternWrite(data);
         ioContentionLate(false);
         return;
       }

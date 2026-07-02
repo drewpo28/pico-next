@@ -68,6 +68,9 @@ uint16_t NextReg::activeLine() {
     return (uint16_t)((line + lines - paperStart) % lines);
 }
 
+static void applyRomSelect();
+static void applyBankC000();
+
 void NextReg::write(uint8_t r, uint8_t v) {
     reg[r] = v;
     switch (r) {
@@ -121,6 +124,22 @@ void NextReg::write(uint8_t r, uint8_t v) {
         case 0x61: NEXTVID::copperIndexLo(v);     break;
         case 0x62: NEXTVID::copperControl(v);     break;
         case 0x63: NEXTVID::copperData16Write(v); break;
+        case 0x8E: { // Spectrum memory mapping (atomic 0x7FFD/0x1FFD write)
+            // bit 3 = apply bank bits 7:4 to 0xC000; bit 2 = paging mode
+            // (0 normal / 1 +3 all-RAM); bits 1:0 = ROM select or all-RAM map
+            if (v & 0x08) {
+                port7FFD = (port7FFD & ~0x07) | ((v >> 4) & 0x07);
+                portDFFD = (portDFFD & ~0x0F) | ((v >> 7) & 0x01);
+                applyBankC000();
+            }
+            if (v & 0x04) {
+                write1FFD(0x01 | ((v & 0x03) << 1)); // all-RAM map
+            } else {
+                MemESP::romLatch = v & 0x01;
+                write1FFD((v & 0x02) << 1);          // normal, ROM high bit
+            }
+            break;
+        }
         default:
             // Remaining registers are latched; video/sprite/palette consumers
             // read NextReg::reg[] directly as they are implemented.

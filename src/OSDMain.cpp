@@ -518,6 +518,13 @@ static string slotInlineEdit(uint8_t opt2, const string& current) {
 
 static bool persistSave(uint8_t slotnumber, uint8_t opt2, bool quicksave = false)
 {
+#if !PICO_RP2040
+    if (Z80Ops::isNext) {
+        // A correct Next state needs 1.75MB RAM + nextregs — SNA can't hold it
+        OSD::osdCenteredMsg("Snapshots not supported on Next yet", LEVEL_WARN, 2000);
+        return false;
+    }
+#endif
     FILINFO stat_buf;
     char persistfname[sizeof(DISK_PSNA_FILE) + 7];
     char persistfinfo[sizeof(DISK_PSNA_FILE) + 7];
@@ -590,6 +597,12 @@ static void f_gets(char* b, size_t sz, FIL& f) {
 
 static bool persistLoad(uint8_t slotnumber)
 {
+#if !PICO_RP2040
+    if (Z80Ops::isNext) {
+        OSD::osdCenteredMsg("Snapshots not supported on Next yet", LEVEL_WARN, 2000);
+        return false;
+    }
+#endif
     char persistfname[sizeof(DISK_PSNA_FILE) + 7];
     char persistfinfo[sizeof(DISK_PSNA_FILE) + 7];
 

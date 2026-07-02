@@ -81,6 +81,8 @@ private:
     // copper state
     static void copperLine(uint16_t rasterLine);
     static void RenderTilemapLine(uint8_t* fb, int row);
+    static void RenderL2Line(uint8_t* fb, int row, bool prioPass);
+    static bool palHasPrio[8];           // palette contains L2 priority entries
     static uint8_t  copperMem[2048];     // 1024 big-endian instructions
     static uint16_t copIndex;            // write index (bytes)
     static uint16_t copPC;               // instruction counter

@@ -25,6 +25,7 @@ pico-next: ZX Spectrum Next scanline video renderer
 uint16_t NEXTVID::rawPal[8][256];
 uint8_t  NEXTVID::lut[8][256];
 uint8_t  NEXTVID::remap[256];
+bool     NEXTVID::palHasPrio[8];
 
 uint8_t NEXTVID::clip[4][4];
 uint8_t NEXTVID::clipIdx[4];
@@ -103,6 +104,7 @@ static inline uint16_t rgb332_to_333(uint8_t v) {
 void NEXTVID::defaultPalettes() {
     // Classic Spectrum colours in RGB333: level 5 normal, 7 bright
     for (int pal = 0; pal < 8; pal++) {
+        palHasPrio[pal] = false;
         for (int i = 0; i < 256; i++)
             rawPal[pal][i] = rgb332_to_333((uint8_t)i);
     }
@@ -138,9 +140,14 @@ void NEXTVID::palValue9(uint8_t v) {
         pal9First = v;
         pal9Second = true;
     } else {
-        // second byte: bit0 = blue LSB (bit7 = Layer2 priority — not yet used)
+        // second byte: bit0 = blue LSB, bit7 = Layer 2 priority
         uint16_t rgb = (rgb332_to_333(pal9First) & ~1) | (v & 1);
-        setLutEntry(writePalSel(palCtrl), palIdx, rgb);
+        uint8_t pal = writePalSel(palCtrl);
+        if (v & 0x80) {
+            rgb |= 0x8000;
+            palHasPrio[pal] = true; // sticky until reset — cheap and safe
+        }
+        setLutEntry(pal, palIdx, rgb);
         pal9Second = false;
         if (!(palCtrl & 0x80)) palIdx++;
     }
@@ -362,14 +369,22 @@ IRAM_ATTR void NEXTVID::RenderLine(int row) {
     int xres = VIDEO::vga.xres;
     const uint8_t* ulaLut = lut[(palCtrl & 0x08) ? 4 : 0];
 
-    uint8_t borderIdx = ulaLut[16 + (VIDEO::borderColor & 7)];
+    bool ulaNext = palCtrl & 0x01;
+    uint8_t borderIdx = ulaNext ? ulaLut[128 + (VIDEO::borderColor & 7)]
+                                : ulaLut[16 + (VIDEO::borderColor & 7)];
     int y = row - paperTopRow;
+    uint8_t r15 = NextReg::reg[0x15];
 
     if (y < 0 || y >= 192) {
         memset(fb, borderIdx, xres);
-        // tilemap covers the border area of its 320x256 window
+        // tilemap and Layer 2 (320x256 mode) cover the border area of the
+        // 320x256 window; sprites reach it with the over-border bit
         if (NextReg::reg[0x6B] & 0x80)
             RenderTilemapLine(fb, row);
+        if ((NextReg::port123B & 0x02) || (NextReg::reg[0x69] & 0x80))
+            RenderL2Line(fb, row, false);
+        if ((r15 & 0x03) == 0x03) // sprites enabled + over border
+            RenderSpritesLine(fb, y);
         return;
     }
 
@@ -392,21 +407,39 @@ IRAM_ATTR void NEXTVID::RenderLine(int row) {
     else if (!(NextReg::reg[0x68] & 0x80)) {
         const uint8_t* bmp = VIDEO::grmem + VIDEO::offBmp[y];
         const uint8_t* att = VIDEO::grmem + VIDEO::offAtt[y];
-        for (int col = 0; col < 32; col++) {
-            uint8_t a = att[col];
-            uint8_t b = bmp[col] ^ (uint8_t)(-((a & VIDEO::flashing) >> 7));
-            uint8_t bright = (a & 0x40) >> 3;
-            uint8_t ink = ulaLut[(a & 7) | bright];
-            uint8_t pap = ulaLut[16 + (((a >> 3) & 7) | bright)];
-            p[0] = (b & 0x80) ? ink : pap;
-            p[1] = (b & 0x40) ? ink : pap;
-            p[2] = (b & 0x20) ? ink : pap;
-            p[3] = (b & 0x10) ? ink : pap;
-            p[4] = (b & 0x08) ? ink : pap;
-            p[5] = (b & 0x04) ? ink : pap;
-            p[6] = (b & 0x02) ? ink : pap;
-            p[7] = (b & 0x01) ? ink : pap;
-            p += 8;
+        if (ulaNext) {
+            // ULANext attribute format: ink = attr & mask, paper = 128 + rest
+            uint8_t mask = NextReg::reg[0x42];
+            uint8_t shift = 0;
+            for (uint8_t m = mask; m; m >>= 1) shift++;
+            for (int col = 0; col < 32; col++) {
+                uint8_t a = att[col];
+                uint8_t b = bmp[col];
+                uint8_t ink = ulaLut[a & mask];
+                uint8_t pap = (mask == 255)
+                    ? remap[g3r3b2_of_rgb333(rgb332_to_333(NextReg::reg[0x4A]))]
+                    : ulaLut[128 + (a >> shift)];
+                for (int bit = 0; bit < 8; bit++)
+                    p[bit] = (b & (0x80 >> bit)) ? ink : pap;
+                p += 8;
+            }
+        } else {
+            for (int col = 0; col < 32; col++) {
+                uint8_t a = att[col];
+                uint8_t b = bmp[col] ^ (uint8_t)(-((a & VIDEO::flashing) >> 7));
+                uint8_t bright = (a & 0x40) >> 3;
+                uint8_t ink = ulaLut[(a & 7) | bright];
+                uint8_t pap = ulaLut[16 + (((a >> 3) & 7) | bright)];
+                p[0] = (b & 0x80) ? ink : pap;
+                p[1] = (b & 0x40) ? ink : pap;
+                p[2] = (b & 0x20) ? ink : pap;
+                p[3] = (b & 0x10) ? ink : pap;
+                p[4] = (b & 0x08) ? ink : pap;
+                p[5] = (b & 0x04) ? ink : pap;
+                p[6] = (b & 0x02) ? ink : pap;
+                p[7] = (b & 0x01) ? ink : pap;
+                p += 8;
+            }
         }
     } else {
         memset(fb + xPaperOff, borderIdx, 256);
@@ -416,37 +449,91 @@ IRAM_ATTR void NEXTVID::RenderLine(int row) {
     if (NextReg::reg[0x6B] & 0x80)
         RenderTilemapLine(fb, row);
 
-    // Layer 2 (256x192x8bpp), over ULA
+    // Layer 2, over ULA
     bool l2on = (NextReg::port123B & 0x02) || (NextReg::reg[0x69] & 0x80);
-    uint8_t slu = (NextReg::reg[0x15] >> 2) & 7;
+    uint8_t slu = (r15 >> 2) & 7;
     bool spritesUnderL2 = (slu == 1 || slu == 4); // L-S-U / L-U-S orders
 
-    if (spritesUnderL2 && (NextReg::reg[0x15] & 0x01))
+    if (spritesUnderL2 && (r15 & 0x01))
         RenderSpritesLine(fb, y);
 
-    if (l2on) {
-        if (y >= clip[0][2] && y <= clip[0][3]) {
-            uint16_t sy = y + NextReg::reg[0x17];
-            if (sy >= 192) sy -= 192;
-            uint16_t page = (uint16_t)(NextReg::reg[0x12] & 0x7F) * 2 + (sy >> 5);
-            if (page < MemESP::NEXT_PAGES - 1u) {
-                const uint8_t* src = MemESP::nextRamPtr[page] + (sy & 31) * 256;
-                uint8_t transp = NextReg::reg[0x14];
-                const uint8_t* l2Lut = lut[(palCtrl & 0x04) ? 5 : 1];
-                uint8_t sx = NextReg::reg[0x16] + clip[0][0];
-                uint8_t* q = fb + xPaperOff + clip[0][0];
-                int count = (int)clip[0][1] - (int)clip[0][0] + 1;
-                while (count-- > 0) {
-                    uint8_t v = src[sx++]; // uint8 wrap = 256px scroll wrap
-                    if (v != transp) *q = l2Lut[v];
-                    q++;
-                }
+    if (l2on)
+        RenderL2Line(fb, row, false);
+
+    if (!spritesUnderL2 && (r15 & 0x01))
+        RenderSpritesLine(fb, y);
+
+    // Layer 2 palette-priority pixels sit above everything
+    if (l2on && palHasPrio[(palCtrl & 0x04) ? 5 : 1])
+        RenderL2Line(fb, row, true);
+}
+
+// Layer 2: 256x192x8bpp (row-major) or 320x256x8bpp (column-major, covers
+// the border window). prioPass re-draws only palette-priority pixels after
+// the sprites so they end up on top.
+IRAM_ATTR void NEXTVID::RenderL2Line(uint8_t* fb, int row, bool prioPass) {
+    uint8_t pal = (palCtrl & 0x04) ? 5 : 1;
+    const uint8_t* l2Lut = lut[pal];
+    const uint16_t* raw = rawPal[pal];
+    uint8_t transp = NextReg::reg[0x14];
+    uint8_t mode = (NextReg::reg[0x70] >> 4) & 3;
+    uint8_t palOfs = (NextReg::reg[0x70] & 0x0F) << 4;
+    uint16_t bank = (uint16_t)(NextReg::reg[0x12] & 0x7F) * 2;
+
+    if (mode == 0) {
+        // 256x192, aligned with the paper area
+        int y = row - paperTopRow;
+        if (y < 0 || y >= 192) return;
+        if (y < clip[0][2] || y > clip[0][3]) return;
+        uint16_t sy = y + NextReg::reg[0x17];
+        if (sy >= 192) sy -= 192;
+        uint16_t page = bank + (sy >> 5);
+        if (page >= MemESP::NEXT_PAGES - 1u) return;
+        const uint8_t* src = MemESP::nextRamPtr[page] + (sy & 31) * 256;
+        uint8_t sx = NextReg::reg[0x16] + clip[0][0];
+        uint8_t* q = fb + xPaperOff + clip[0][0];
+        int count = (int)clip[0][1] - (int)clip[0][0] + 1;
+        if (!prioPass) {
+            while (count-- > 0) {
+                uint8_t v = src[sx++]; // uint8 wrap = 256px scroll wrap
+                if (v != transp) *q = l2Lut[(uint8_t)(v + palOfs)];
+                q++;
+            }
+        } else {
+            while (count-- > 0) {
+                uint8_t v = src[sx++];
+                if (v != transp && (raw[(uint8_t)(v + palOfs)] & 0x8000))
+                    *q = l2Lut[(uint8_t)(v + palOfs)];
+                q++;
             }
         }
+    } else if (mode == 1) {
+        // 320x256, column-major (byte offset = x*256 + y), covers the border
+        int ty = row - (paperTopRow - 32);
+        if (ty < 0 || ty >= 256) return;
+        int cy1 = clip[0][2], cy2 = clip[0][3];
+        if (ty < cy1 || ty > cy2) return;
+        uint16_t scrollX = ((NextReg::reg[0x71] & 1) << 8) | NextReg::reg[0x16];
+        uint8_t sy = (uint8_t)(ty + NextReg::reg[0x17]);
+        int xOrig = xPaperOff - 32;
+        int xres = VIDEO::vga.xres;
+        int cx1 = clip[0][0] * 2, cx2 = clip[0][1] * 2 + 1;
+        for (int tx = 0; tx < 320; tx++) {
+            if (tx < cx1 || tx > cx2) continue;
+            int fx = xOrig + tx;
+            if (fx < 0 || fx >= xres) continue;
+            uint16_t sx = tx + scrollX;
+            if (sx >= 320) sx -= 320;
+            uint32_t off = (uint32_t)sx * 256 + sy;
+            uint16_t page = bank + (off >> 13);
+            if (page >= MemESP::NEXT_PAGES) continue;
+            uint8_t v = MemESP::nextRamPtr[page][off & 0x1FFF];
+            if (v == transp) continue;
+            if (prioPass && !(raw[(uint8_t)(v + palOfs)] & 0x8000)) continue;
+            fb[fx] = l2Lut[(uint8_t)(v + palOfs)];
+        }
     }
-
-    if (!spritesUnderL2 && (NextReg::reg[0x15] & 0x01))
-        RenderSpritesLine(fb, y);
+    // mode 2 (640x256x4bpp) is a documented non-goal (scanout is 360px max)
 }
 
 // Tilemap: 40x32 (or 80x32 rendered horizontally halved) tiles of 8x8x4bpp.
@@ -504,8 +591,12 @@ IRAM_ATTR void NEXTVID::RenderSpritesLine(uint8_t* fb, int y) {
     const uint8_t* sprLut = lut[(palCtrl & 0x02) ? 6 : 2];
     uint8_t transp = NextReg::reg[0x4B];
     int sline = y + 32;
+    if (sline < 0 || sline > 255) return;
     bool reverse = NextReg::reg[0x15] & 0x40; // bit6: sprite 0 drawn on top of 127
-    uint8_t coverage[32];
+    bool overBorder = NextReg::reg[0x15] & 0x02;
+    int xPixMin = overBorder ? -32 : 0;
+    int xPixMax = overBorder ? 287 : 255;
+    uint8_t coverage[40]; // 320-bit line coverage for the collision flag
     memset(coverage, 0, sizeof(coverage));
     int rendered = 0;
 
@@ -542,9 +633,13 @@ IRAM_ATTR void NEXTVID::RenderSpritesLine(uint8_t* fb, int y) {
         int width = 16 << xscale;
         for (int px = 0; px < width; px++) {
             int xPix = sx + px - 32; // paper coords
-            if (xPix < 0 || xPix > 255) continue;
-            if (xPix < clip[1][0] || xPix > clip[1][1]) continue;
-            if (y < clip[1][2] || y > clip[1][3]) continue;
+            if (xPix < xPixMin || xPix > xPixMax) continue;
+            if (!overBorder) {
+                if (xPix < clip[1][0] || xPix > clip[1][1]) continue;
+                if (y < clip[1][2] || y > clip[1][3]) continue;
+            }
+            int fx = xPaperOff + xPix;
+            if (fx < 0 || fx >= (int)VIDEO::vga.xres) continue;
             uint8_t u = px >> xscale;
             if (xmirror) u = 15 - u;
             uint8_t uu = u, vv = v;
@@ -560,10 +655,11 @@ IRAM_ATTR void NEXTVID::RenderSpritesLine(uint8_t* fb, int y) {
                 if (pix == transp) continue;
                 pix = (uint8_t)(pix + palOfs);
             }
-            uint8_t mask = 1 << (xPix & 7);
-            if (coverage[xPix >> 3] & mask) sprFlags |= 0x01; // collision
-            coverage[xPix >> 3] |= mask;
-            fb[xPaperOff + xPix] = sprLut[pix];
+            uint16_t cbit = xPix + 32;
+            uint8_t mask = 1 << (cbit & 7);
+            if (coverage[cbit >> 3] & mask) sprFlags |= 0x01; // collision
+            coverage[cbit >> 3] |= mask;
+            fb[fx] = sprLut[pix];
         }
         if (++rendered > 100) { sprFlags |= 0x02; break; } // per-line overflow
     }

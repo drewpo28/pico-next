@@ -832,6 +832,12 @@ void ESPectrum::setup() {
   chip1.set_sound_format(Audio_freq, 1, 8);
   chip1.set_stereo(AYEMU_MONO, NULL);
   chip1.reset();
+#if !PICO_RP2040
+  chip2.init();
+  chip2.set_sound_format(Audio_freq, 1, 8);
+  chip2.set_stereo(AYEMU_MONO, NULL);
+  chip2.reset();
+#endif
   Debug::log("setup: AY init done");
 
   // Init tape
@@ -948,6 +954,10 @@ void ESPectrum::reset(uint8_t romInUse) {
   memset(audioBufferCovox, 0, sizeof(audioBufferCovox));
   memset(chip0.SamplebufAY_L, 0, sizeof(chip0.SamplebufAY_L));
   memset(chip1.SamplebufAY_R, 0, sizeof(chip1.SamplebufAY_R));
+#if !PICO_RP2040
+  memset(chip2.SamplebufAY_L, 0, sizeof(chip2.SamplebufAY_L));
+  memset(chip2.SamplebufAY_R, 0, sizeof(chip2.SamplebufAY_R));
+#endif
   lastCovoxVal = lastaudioBit = 0;
 
   AY_emu = Config::AY48;
@@ -992,6 +1002,12 @@ void ESPectrum::reset(uint8_t romInUse) {
   chip1.set_sound_format(Audio_freq, 1, 8);
   chip1.set_stereo(AYEMU_MONO, NULL);
   chip1.reset();
+#if !PICO_RP2040
+  chip2.init();
+  chip2.set_sound_format(Audio_freq, 1, 8);
+  chip2.set_stereo(AYEMU_MONO, NULL);
+  chip2.reset();
+#endif
 
   CPU::reset();
 
@@ -1339,6 +1355,10 @@ __not_in_flash("audio") void ESPectrum::AYGetSample() {
         chip0.gen_sound(audbufpos - audbufcntAY, audbufcntAY);
     if (Config::turbosound)
             chip1.gen_sound(audbufpos - audbufcntAY, audbufcntAY);
+#if !PICO_RP2040
+    if (Z80Ops::isNext)
+            chip2.gen_sound(audbufpos - audbufcntAY, audbufcntAY);
+#endif
     audbufcntAY = audbufpos;
   }
 }
@@ -1542,7 +1562,7 @@ void ESPectrum::loop() {
             dc_fade_q8 = 256u;
           }
         }
-        if (Config::covox && faudbufcntCovox < samplesPerFrame) {
+        if ((Config::covox || Z80Ops::isNext) && faudbufcntCovox < samplesPerFrame) {
           uint8_t *sound_buf = audioBufferCovox + faudbufcntCovox;
           int sound_bufsize = samplesPerFrame - faudbufcntCovox;
           while (sound_bufsize-- > 0) {
@@ -1556,6 +1576,9 @@ void ESPectrum::loop() {
         if (AY_emu && faudbufcntAY < samplesPerFrame) {
             if(Config::turbosound != 0 || AySound::selected_chip == 0) chip0.gen_sound(samplesPerFrame - faudbufcntAY , faudbufcntAY);
             if(Config::turbosound != 0 || AySound::selected_chip == 1) chip1.gen_sound(samplesPerFrame - faudbufcntAY , faudbufcntAY);
+#if !PICO_RP2040
+            if(Z80Ops::isNext) chip2.gen_sound(samplesPerFrame - faudbufcntAY , faudbufcntAY);
+#endif
         }
 #if !PICO_RP2040
         if (Midi::enabled == 3)
@@ -1567,6 +1590,13 @@ void ESPectrum::loop() {
         bool mix_chip0 = AY_emu && (Config::turbosound != 0 || AySound::selected_chip == 0);
         bool mix_chip1 = AY_emu && (Config::turbosound != 0 || AySound::selected_chip == 1);
 #if !PICO_RP2040
+        bool mix_chip2 = AY_emu && Z80Ops::isNext;
+        bool p0L = ay_next_pan[0] & 2, p0R = ay_next_pan[0] & 1;
+        bool p1L = ay_next_pan[1] & 2, p1R = ay_next_pan[1] & 1;
+        bool p2L = ay_next_pan[2] & 2, p2R = ay_next_pan[2] & 1;
+        if (!Z80Ops::isNext) { p0L = p0R = p1L = p1R = true; }
+#endif
+#if !PICO_RP2040
         bool mix_midi = (Midi::enabled == 3);
 #endif
         bool fddSndEnabledMix = Config::trdosSoundLed;
@@ -1576,6 +1606,20 @@ void ESPectrum::loop() {
           int beeper_L = overSamplebuf[i] + audioBufferCovox[i];
           if (mix_fdd) beeper_L += getFDDSample(i);
           int beeper_R = beeper_L;
+#if !PICO_RP2040
+          if (mix_chip0) {
+            if (p0L) beeper_L += chip0.SamplebufAY_L[i];
+            if (p0R) beeper_R += chip0.SamplebufAY_R[i];
+          }
+          if (mix_chip1) {
+            if (p1L) beeper_L += chip1.SamplebufAY_L[i];
+            if (p1R) beeper_R += chip1.SamplebufAY_R[i];
+          }
+          if (mix_chip2) {
+            if (p2L) beeper_L += chip2.SamplebufAY_L[i];
+            if (p2R) beeper_R += chip2.SamplebufAY_R[i];
+          }
+#else
           if (mix_chip0) {
             beeper_L += chip0.SamplebufAY_L[i];
             beeper_R += chip0.SamplebufAY_R[i];
@@ -1584,6 +1628,7 @@ void ESPectrum::loop() {
             beeper_L += chip1.SamplebufAY_L[i];
             beeper_R += chip1.SamplebufAY_R[i];
           }
+#endif
 #if !PICO_RP2040
           if (mix_midi) {
             beeper_L += audioBufferMIDI_L[i];

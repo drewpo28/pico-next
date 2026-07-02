@@ -221,6 +221,13 @@ private:
 
 extern AySound chip0;
 extern AySound chip1;
+#if !PICO_RP2040
+extern AySound chip2;        // TurboSound Next third AY
+extern AySound* chips[3];
+// TurboSound Next per-chip panning (bit1 = left, bit0 = right)
+extern uint8_t ay_next_pan[3];
+#else
 extern AySound* chips[2];
+#endif
 
 #endif // AySound_h

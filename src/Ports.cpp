@@ -84,6 +84,11 @@ uint8_t Ports::portAFF7 = 0;
 
 uint8_t (*Ports::getFloatBusData)() = &Ports::getFloatBusData48;
 
+#if !PICO_RP2040
+// Next DAC latches (A/B = left, C/D = right)
+static uint8_t nextDac[4];
+#endif
+
 IRAM_ATTR uint8_t Ports::getFloatBusData48() {
 
   unsigned int currentTstates = CPU::tstates;
@@ -479,6 +484,26 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
         ioContentionLate(false);
         return;
       }
+      // Next DACs (Covox/SpecDrum/Soundrive ports) — mono mix into the
+      // Covox channel for now
+      if (a8 == 0x0F || a8 == 0x1F || a8 == 0x4F || a8 == 0x5F ||
+          a8 == 0xDF || a8 == 0xFB || a8 == 0xB3) {
+        switch (a8) {
+          case 0x0F: nextDac[0] = data; break;              // A (left)
+          case 0x1F: nextDac[1] = data; break;              // B (left)
+          case 0x4F: nextDac[2] = data; break;              // C (right)
+          case 0x5F: nextDac[3] = data; break;              // D (right)
+          case 0xB3: nextDac[0] = nextDac[3] = data; break; // stereo pair
+          default:                                          // SpecDrum/Covox mono
+            nextDac[0] = nextDac[1] = nextDac[2] = nextDac[3] = data;
+            break;
+        }
+        ESPectrum::lastCovoxVal =
+            (uint8_t)((nextDac[0] + nextDac[1] + nextDac[2] + nextDac[3]) >> 2);
+        ESPectrum::CovoxGetSample();
+        ioContentionLate(false);
+        return;
+      }
       if (address == 0xDFFD) {
         NextReg::writeDFFD(data);
         ioContentionLate(false);
@@ -551,6 +576,18 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
       VIDEO::timex_port_ff = data & 0x3F;
       VIDEO::timex_mode = data & 0x07;
       VIDEO::timex_hires_ink = (data >> 3) & 0x07;
+      ioContentionLate(MemESP::ramContended[rambank]);
+      return;
+    }
+#endif
+#if !PICO_RP2040
+    // TurboSound Next: 0xFFFD control byte 111LRxCC — chip select + panning
+    if (Z80Ops::isNext && address == 0xFFFD && (data & 0xE0) == 0xE0) {
+      uint8_t cc = data & 0x03;
+      if (cc) {
+        AySound::selected_chip = 3 - cc; // 0xFF/0xFE/0xFD -> AY1/AY2/AY3
+        ay_next_pan[AySound::selected_chip] = (data >> 5) & 0x03;
+      }
       ioContentionLate(MemESP::ramContended[rambank]);
       return;
     }

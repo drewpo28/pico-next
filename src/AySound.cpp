@@ -55,7 +55,13 @@ int AySound::selected_chip = 0;
 
 AySound chip0(0);
 AySound chip1(1);
+#if !PICO_RP2040
+AySound chip2(2);
+AySound* chips[3] = { &chip0, &chip1, &chip2 };
+uint8_t ay_next_pan[3] = { 3, 3, 3 };
+#else
 AySound* chips[2] = { &chip0, &chip1 };
+#endif
 
 /* sound chip volume envelops (will calculated by gen_env()) */
 // static int bEnvGenInit = 0;

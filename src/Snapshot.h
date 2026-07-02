@@ -58,11 +58,20 @@ class FileZ80
 {
 public:
     static bool load(const string& z80_fn);
-    static void loader48();    
-    static void loader128();        
+    static void loader48();
+    static void loader128();
 private:
     static void loadCompressedMemData(FIL* f, uint16_t dataLen, uint16_t memStart, uint16_t memlen);
     static void loadCompressedMemPage(FIL* f, uint16_t dataLen, uint8_t* memPage, uint16_t memlen);
 };
+
+#if !PICO_RP2040
+// ZX Spectrum Next executable (.NEX)
+class FileNEX
+{
+public:
+    static bool load(const string& nex_fn);
+};
+#endif
 
 #endif

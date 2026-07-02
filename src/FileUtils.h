@@ -99,6 +99,7 @@ public:
     // static string getSortedFileList(string fileDir);
     static bool hasSNAextension(const string& filename);
     static bool hasZ80extension(const string& filename);
+    static bool hasNEXextension(const string& filename);
     static bool hasTAPextension(const string& filename);
     static bool hasTZXextension(const string& filename);
     static bool hasWAVextension(const string& filename);

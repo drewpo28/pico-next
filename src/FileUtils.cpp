@@ -79,12 +79,12 @@ DISK_FTYPE FileUtils::fileTypes[6] = {
     {".mmc,.MMC,.hdf,.HDF",2,2,0,""},
     {".sna,.SNA,.z80,.Z80,.tap,.TAP,.tzx,.TZX,.pzx,.PZX,.wav,.WAV,.mp3,.MP3,.trd,.TRD,.scl,.SCL",2,2,0,""}
 #else
-    {".sna,.SNA,.z80,.Z80,.zip,.ZIP",2,2,0,""},
+    {".sna,.SNA,.z80,.Z80,.nex,.NEX,.zip,.ZIP",2,2,0,""},
     {".tap,.TAP,.tzx,.TZX,.pzx,.PZX,.wav,.WAV,.mp3,.MP3,.zip,.ZIP",2,2,0,""},
     {".trd,.TRD,.scl,.SCL,.udi,.UDI,.fdi,.FDI,.zip,.ZIP",2,2,0,""},
     {".rom,.ROM,.bin,.BIN",2,2,0,""},
     {".mmc,.MMC,.hdf,.HDF,.zip,.ZIP",2,2,0,""},
-    {".sna,.SNA,.z80,.Z80,.tap,.TAP,.tzx,.TZX,.pzx,.PZX,.wav,.WAV,.mp3,.MP3,.trd,.TRD,.scl,.SCL,.udi,.UDI,.fdi,.FDI,.mmc,.MMC,.hdf,.HDF,.zip,.ZIP",2,2,0,""}
+    {".sna,.SNA,.z80,.Z80,.nex,.NEX,.tap,.TAP,.tzx,.TZX,.pzx,.PZX,.wav,.WAV,.mp3,.MP3,.trd,.TRD,.scl,.SCL,.udi,.UDI,.fdi,.FDI,.mmc,.MMC,.hdf,.HDF,.zip,.ZIP",2,2,0,""}
 #endif
 };
 
@@ -242,6 +242,13 @@ bool FileUtils::hasZ80extension(const string& filename)
 {
     if (filename.substr(filename.size()-4,4) == ".z80") return true;
     if (filename.substr(filename.size()-4,4) == ".Z80") return true;
+    return false;
+}
+
+bool FileUtils::hasNEXextension(const string& filename)
+{
+    if (filename.substr(filename.size()-4,4) == ".nex") return true;
+    if (filename.substr(filename.size()-4,4) == ".NEX") return true;
     return false;
 }
 

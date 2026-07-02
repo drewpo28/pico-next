@@ -70,6 +70,10 @@ bool LoadSnapshot(const string& filename, const string& force_arch, const string
         res = FileSNA::load(filename, force_arch, force_romset);
     } else if (FileUtils::hasZ80extension(filename)) {
         res = FileZ80::load(filename);
+#if !PICO_RP2040
+    } else if (FileUtils::hasNEXextension(filename)) {
+        res = FileNEX::load(filename);
+#endif
     }
     if (res && OSDprev) {
         VIDEO::OSD = OSDprev;

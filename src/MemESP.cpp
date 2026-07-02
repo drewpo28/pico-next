@@ -321,6 +321,9 @@ uint8_t  MemESP::mmu[8];
 bool     MemESP::nextRamReady = false;
 uint8_t* MemESP::wrOverlay[2] = { nullptr, nullptr };
 bool     MemESP::wr_overlay_active = false;
+uint8_t* MemESP::nextRomBase = nullptr;
+uint8_t* MemESP::nextDivRomBase = nullptr;
+uint8_t  MemESP::next_rom_mask = 0;
 
 // Unmapped MMU pages read 0xFF (open bus). Lives in flash (.rodata), so the
 // XIP-address write guard in writebyte() blocks writes to it automatically.
@@ -337,7 +340,9 @@ static constexpr OpenBusPage open_bus_page;
 // working; banks 8-111 (pages 16-223) take 1664K of butter PSRAM, accounted
 // through butter_pages so the DivMMC allocator composes on top.
 bool MemESP::buildNextRam() {
-    size_t needed = (size_t)(NEXT_PAGES - 16) * 0x2000;
+    // RAM pages 16-223 plus a 72K ROM region (64K NextZXOS set + 8K MMC ROM)
+    size_t romExtra = 9 * 0x2000;
+    size_t needed = (size_t)(NEXT_PAGES - 16) * 0x2000 + romExtra;
     size_t avail = butter_psram_size();
     size_t used = (size_t)butter_pages * MEM_PG_SZ;
     if (avail < used + needed) return false;
@@ -348,9 +353,35 @@ bool MemESP::buildNextRam() {
     uint8_t* base = (uint8_t*)PSRAM_DATA + used;
     for (int pg = 16; pg < NEXT_PAGES; pg++)
         nextRamPtr[pg] = base + (size_t)(pg - 16) * 0x2000;
-    butter_pages += (NEXT_PAGES - 16) / 2; // account in 16K units
+    // ROM region sits after the RAM pages; pointers stay null until the ROM
+    // files actually load
+    nextRomBase = nullptr;
+    nextDivRomBase = nullptr;
+    butter_pages += (NEXT_PAGES - 16 + 9 + 1) / 2; // account in 16K units
     nextRamReady = true;
     return true;
+}
+
+// Load the real Next ROMs from SD (optional — the 128K ROM pair remains the
+// fallback). Called from setup() after buildNextRam() with the SD mounted.
+bool MemESP::loadNextRoms() {
+    if (!nextRamReady) return false;
+    uint8_t* romRegion = nextRamPtr[NEXT_PAGES - 1] + 0x2000; // after RAM pages
+    FIL* f = fopen2("/roms/next/enNextZX.rom", FA_READ);
+    if (f) {
+        UINT br = 0;
+        bool ok = f_read(f, romRegion, 0x10000, &br) == FR_OK && br == 0x10000;
+        fclose2(f);
+        if (ok) nextRomBase = romRegion;
+    }
+    f = fopen2("/roms/next/enNxtmmc.rom", FA_READ);
+    if (f) {
+        UINT br = 0;
+        bool ok = f_read(f, romRegion + 0x10000, 0x2000, &br) == FR_OK && br == 0x2000;
+        fclose2(f);
+        if (ok) nextDivRomBase = romRegion + 0x10000;
+    }
+    return nextRomBase != nullptr;
 }
 
 void MemESP::applyMMU(uint8_t slot, uint8_t page) {
@@ -358,11 +389,17 @@ void MemESP::applyMMU(uint8_t slot, uint8_t page) {
     mmu[slot] = page;
     uint8_t* p;
     if (page == 0xFF && slot <= 1) {
-        p = rom[romInUse].direct() + slot * 0x2000;
-    } else if (page < NEXT_PAGES && nextRamPtr[page]) {
-        p = nextRamPtr[page];
+        if (nextRomBase)
+            p = nextRomBase + (uint32_t)(romInUse & 3) * 0x4000 + slot * 0x2000;
+        else
+            p = rom[romInUse & 1].direct() + slot * 0x2000;
+        next_rom_mask |= (1 << slot);
     } else {
-        p = (uint8_t*)open_bus_page.b;
+        next_rom_mask &= ~(1 << slot);
+        if (page < NEXT_PAGES && nextRamPtr[page])
+            p = nextRamPtr[page];
+        else
+            p = (uint8_t*)open_bus_page.b;
     }
     ramCurrent[slot] = p;
     ramContended[slot] = false; // Next has no contention

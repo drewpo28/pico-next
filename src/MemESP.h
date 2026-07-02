@@ -174,6 +174,10 @@ public:
         ramCurrent[s16 * 2 + 1] = p + 0x2000;
         ramContended[s16 * 2] = contended;
         ramContended[s16 * 2 + 1] = contended;
+#if !PICO_RP2040
+        // legacy paging took over slots 0/1 — drop the Next ROM write protect
+        if (s16 == 0) next_rom_mask = 0;
+#endif
     }
 
     static uint8_t notMore128;
@@ -208,6 +212,14 @@ public:
     // land in Layer 2 RAM while reads still see the mapped ROM
     static uint8_t* wrOverlay[2];
     static bool wr_overlay_active;
+
+    // Next ROMs loaded from SD into butter PSRAM (enNextZX.rom, 4x16K +
+    // enNxtmmc.rom, 8K). PSRAM is writable, so ROM-mapped slots 0/1 are
+    // write-protected via next_rom_mask in writebyte().
+    static uint8_t* nextRomBase;     // 64K NextZXOS ROM set (null = 128K fallback)
+    static uint8_t* nextDivRomBase;  // 8K Next MMC ROM (null = esxdos fallback)
+    static uint8_t  next_rom_mask;   // bit N: slot N (0/1) has ROM mapped
+    static bool loadNextRoms();      // load ROM files from SD (after buildNextRam)
 #endif
 
     static uint8_t readbyte(uint16_t addr);
@@ -246,24 +258,28 @@ inline void MemESP::writebyte(uint16_t addr, uint8_t data)
         CPU::portBasedBP = true;
     uint8_t page = addr >> 13;
 #if !PICO_RP2040
-    if (page <= 1 && wr_overlay_active) { // Layer 2 write window (port 0x123B)
-        wrOverlay[page][addr & 0x1fff] = data;
-        return;
-    }
-    if (page <= 1 && divmmc_mapped) {
-        if (page == 0) {
-            // 0x0000-0x1FFF: writable only when MAPRAM (RAM bank)
-            // In swap mode: divmmc_lo_dirty != null means heap bank (MAPRAM)
-            if (divmmc_lo_dirty) {
-                page0_lo[addr] = data;
-                *divmmc_lo_dirty = true;
-            }
-        } else {
-            // 0x2000-0x3FFF: always RAM bank, writable
-            page0_hi[addr & 0x1FFF] = data;
-            if (divmmc_hi_dirty) *divmmc_hi_dirty = true;
+    if (page <= 1) {
+        if (wr_overlay_active) { // Layer 2 write window (port 0x123B)
+            wrOverlay[page][addr & 0x1fff] = data;
+            return;
         }
-        return;
+        if (divmmc_mapped) {
+            if (page == 0) {
+                // 0x0000-0x1FFF: writable only when MAPRAM (RAM bank)
+                // In swap mode: divmmc_lo_dirty != null means heap bank (MAPRAM)
+                if (divmmc_lo_dirty) {
+                    page0_lo[addr] = data;
+                    *divmmc_lo_dirty = true;
+                }
+            } else {
+                // 0x2000-0x3FFF: always RAM bank, writable
+                page0_hi[addr & 0x1FFF] = data;
+                if (divmmc_hi_dirty) *divmmc_hi_dirty = true;
+            }
+            return;
+        }
+        // Next ROM lives in writable PSRAM — enforce read-only here
+        if (next_rom_mask & (1 << page)) return;
     }
 #endif
     uint8_t* p = ramCurrent[page];

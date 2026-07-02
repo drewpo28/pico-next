@@ -209,6 +209,8 @@ IRAM_ATTR uint8_t Ports::input(uint16_t address) {
       if (address == 0x253B) return NextReg::read(NextReg::selected);
       if (address == 0x123B) return NextReg::port123B;
       if (address == 0x303B) return NEXTVID::spriteFlagsRead();
+      // I2C bus (RTC) — no device attached: lines read idle-high
+      if (address == 0x103B || address == 0x113B) return 0xFF;
     }
     // ULA+ data port read
     if (Config::ulaplus && address == 0xFF3B) {
@@ -470,6 +472,11 @@ IRAM_ATTR void Ports::output(uint16_t address, uint8_t data) {
       }
       if (address == 0x303B) {
         NEXTVID::spriteSlotSelect(data);
+        ioContentionLate(false);
+        return;
+      }
+      // I2C bus (RTC) — writes ignored, no device attached
+      if (address == 0x103B || address == 0x113B) {
         ioContentionLate(false);
         return;
       }

@@ -169,10 +169,11 @@ void NextReg::updateLayer2Window() {
 // ===== Legacy Spectrum paging, Next-style (implemented on top of the MMU) =====
 
 static void applyRomSelect() {
-    // Refresh ROM pointers if ROM is currently mapped in slots 0/1.
-    // Only 2 ROMs (128K editor/48K BASIC) are available until Next ROMs
-    // are loaded from SD, so clamp to bit 0.
-    MemESP::romInUse = MemESP::romLatch & 0x01;
+    // ROM select: 0x7FFD bit 4 = low bit, 0x1FFD bit 2 = high bit. With the
+    // NextZXOS ROM set loaded from SD all four 16K ROMs are available;
+    // otherwise clamp to the two-ROM 128K fallback.
+    uint8_t romsel = (MemESP::romLatch & 0x01) | ((NextReg::port1FFD >> 1) & 0x02);
+    MemESP::romInUse = MemESP::nextRomBase ? romsel : (romsel & 0x01);
     if (MemESP::mmu[0] == 0xFF) MemESP::applyMMU(0, 0xFF);
     if (MemESP::mmu[1] == 0xFF) MemESP::applyMMU(1, 0xFF);
 }

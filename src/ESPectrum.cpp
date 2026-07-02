@@ -687,6 +687,10 @@ void ESPectrum::setup() {
         Config::arch = "128K";
         for (size_t i = 8; i < (MEM_PG_CNT + 2); ++i)
           assign_ram(i);
+      } else if (FileUtils::fsMount) {
+        // Optional real Next ROMs from SD (/roms/next/enNextZX.rom + enNxtmmc.rom)
+        bool roms = MemESP::loadNextRoms();
+        Debug::log("setup: Next ROMs %s", roms ? "loaded from SD" : "not found, using 128K fallback");
       }
     } else
 #endif
@@ -746,6 +750,12 @@ void ESPectrum::setup() {
 #if !PICO_RP2040
   // Always init DivMMC (load ROM) so it's ready if user enables from OSD later
   DivMMC::init();
+  // On Next with the real MMC ROM available, the divMMC automap runs
+  // NextZXOS's own ROM instead of esxdos
+  if (Config::arch == "Next" && MemESP::nextDivRomBase) {
+    DivMMC::esxdos_rom = MemESP::nextDivRomBase;
+    DivMMC::rom_loaded = true;
+  }
 #endif
 
   //=======================================================================================
